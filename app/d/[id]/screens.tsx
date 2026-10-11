@@ -667,35 +667,34 @@ export function FactsScreen({
           Unchecked. Find the official page before you lean on anyone’s story.
         </Empty>
       ) : (
-        <Pager
-          items={facts}
-          label="Facts"
-          render={(fact) => (
-            <article className="flex h-full flex-col gap-2 overflow-hidden rounded-2xl rounded-bl-md bg-card p-3.5">
-              <p className="flex shrink-0 items-center gap-2 text-sm">
-                <span className="rounded-md bg-primary/15 px-2 py-0.5 font-pixel text-primary">
-                  Fact
-                </span>
-                <span className="truncate text-muted-foreground">{fact.source}</span>
-              </p>
-              <Clamp text={fact.text} />
+        <ul className="flex shrink-0 flex-col gap-2">
+          {facts.map((fact) => (
+            <li key={fact.url}>
               <a
                 href={fact.url}
                 target="_blank"
                 rel="noreferrer"
-                className={`shrink-0 self-start text-sm font-medium ${LINK}`}
+                className="flex flex-col gap-1.5 rounded-2xl bg-card p-3.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.99]"
               >
-                The page
+                <span className="truncate text-xs text-muted-foreground">{fact.source}</span>
+                <span className="text-pretty text-sm leading-snug">{fact.text}</span>
+                <span className={`text-sm font-medium ${LINK}`}>Open the page</span>
               </a>
-            </article>
-          )}
-        />
+            </li>
+          ))}
+        </ul>
       )}
       {result.unknown?.length ? (
-        <Bubble from="ffomo">
+        <div className="shrink-0 rounded-2xl bg-card px-3.5 py-3">
           <p className="text-xs text-muted-foreground">The posts won’t tell you</p>
-          <p className="mt-1">{result.unknown.join(" · ")}</p>
-        </Bubble>
+          <ul className="mt-1.5 flex flex-col gap-1">
+            {result.unknown.map((item) => (
+              <li key={item} className="text-sm text-pretty leading-snug">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
       {gate}
       </div>

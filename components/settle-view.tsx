@@ -10,6 +10,9 @@ import type { SavedDecision } from "@/lib/store";
 const CHIP =
   "h-10 rounded-xl border-2 px-3 text-left text-sm font-medium data-[on=true]:border-primary data-[on=true]:bg-primary/15";
 
+const FACT_CHIP =
+  "min-h-11 rounded-xl border-2 px-3 py-2 text-left text-sm leading-snug font-medium data-[on=true]:border-primary data-[on=true]:bg-primary/15";
+
 const WORRY = {
   fact: "You're missing a fact.",
   money: "It's the money.",
@@ -125,105 +128,108 @@ export function FactGate({
   });
   return (
     <div className="flex shrink-0 flex-col gap-3">
-      <Bubble from="ffomo">
-        <p className="font-medium">Does a deadline, a sum, or a safety line kill one path?</p>
-      </Bubble>
-      <div className="grid shrink-0 grid-cols-2 gap-2">
-        <button
-          type="button"
-          className={CHIP}
-          data-on={binding?.on === true && !binding.checked}
-          onClick={() => onPatch({ binding: { on: true, checked: false } })}
-        >
-          Not checked yet
-        </button>
-        <button
-          type="button"
-          className={CHIP}
-          data-on={binding?.on === false && binding?.checked === true}
-          onClick={() => onPatch({ binding: { on: false, checked: true } })}
-        >
-          Neither
-        </button>
-        <button
-          type="button"
-          className={CHIP}
-          data-on={binding?.survives === "b"}
-          onClick={() => onPatch({ binding: { on: true, checked: true, survives: "b" } })}
-        >
-          {pathA} fails
-        </button>
-        <button
-          type="button"
-          className={CHIP}
-          data-on={binding?.survives === "a"}
-          onClick={() => onPatch({ binding: { on: true, checked: true, survives: "a" } })}
-        >
-          {pathB} fails
-        </button>
-      </div>
-      <Bubble from="ffomo">
-        <p className="font-medium">The thing you were afraid was missing.</p>
-      </Bubble>
-      <div className="grid shrink-0 grid-cols-1 gap-2">
-        <button
-          type="button"
-          className={CHIP}
-          data-on={resolving?.applies === true && resolving.checked === false}
-          onClick={() => onPatch({ resolving: { applies: true, checked: false, inHand: false } })}
-        >
-          Still unknown
-        </button>
-        <button
-          type="button"
-          className={CHIP}
-          data-on={resolving?.checked === true && resolving.inHand === false}
-          onClick={() => onPatch({ resolving: { applies: true, checked: true, inHand: false } })}
-        >
-          Checked. It isn't there.
-        </button>
-        <button
-          type="button"
-          className={CHIP}
-          data-on={resolving?.inHand === true}
-          onClick={() => onPatch({ resolving: { applies: true, checked: true, inHand: true } })}
-        >
-          Already true
-        </button>
-      </div>
-      <Bubble from="ffomo">
-        <p className="font-medium">One number you can check.</p>
-        <p className="mt-1 text-muted-foreground">Paid, what you can get back, extra to switch. Optional.</p>
-      </Bubble>
-      <div className="grid shrink-0 grid-cols-3 gap-2">
-        <Input
-          inputMode="decimal"
-          aria-label="Already paid"
-          placeholder="Paid"
-          defaultValue={saved.paid ?? ""}
-          className="h-12 rounded-2xl px-3 text-base"
-          onChange={(event) => money("paid", event.target.value)}
-        />
-        <Input
-          inputMode="decimal"
-          aria-label="Recoverable now"
-          placeholder="Back"
-          defaultValue={saved.recoverable ?? ""}
-          className="h-12 rounded-2xl px-3 text-base"
-          onChange={(event) => money("recoverable", event.target.value)}
-        />
-        <Input
-          inputMode="decimal"
-          aria-label="Extra to switch"
-          placeholder="Extra"
-          defaultValue={saved.extra ?? ""}
-          className="h-12 rounded-2xl px-3 text-base"
-          onChange={(event) => money("extra", event.target.value)}
-        />
-      </div>
-      {cost != null ? (
-        <p className="text-sm text-muted-foreground">Switching cost {cost}.</p>
-      ) : null}
+      <section className="flex flex-col gap-2 rounded-2xl bg-card p-3.5">
+        <p className="font-medium">Does a real limit rule one out?</p>
+        <p className="text-sm text-pretty text-muted-foreground">
+          A date you would miss, a price you can’t pay, or something it has to have.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            className={FACT_CHIP}
+            data-on={binding?.on === true && !binding.checked}
+            onClick={() => onPatch({ binding: { on: true, checked: false } })}
+          >
+            Not checked yet
+          </button>
+          <button
+            type="button"
+            className={FACT_CHIP}
+            data-on={binding?.on === false && binding?.checked === true}
+            onClick={() => onPatch({ binding: { on: false, checked: true } })}
+          >
+            Neither
+          </button>
+          <button
+            type="button"
+            className={FACT_CHIP}
+            data-on={binding?.survives === "b"}
+            onClick={() => onPatch({ binding: { on: true, checked: true, survives: "b" } })}
+          >
+            {pathA} is out
+          </button>
+          <button
+            type="button"
+            className={FACT_CHIP}
+            data-on={binding?.survives === "a"}
+            onClick={() => onPatch({ binding: { on: true, checked: true, survives: "a" } })}
+          >
+            {pathB} is out
+          </button>
+        </div>
+      </section>
+      <section className="flex flex-col gap-2 rounded-2xl bg-card p-3.5">
+        <p className="font-medium">The thing you were afraid of missing.</p>
+        <div className="grid grid-cols-1 gap-2">
+          <button
+            type="button"
+            className={FACT_CHIP}
+            data-on={resolving?.applies === true && resolving.checked === false}
+            onClick={() => onPatch({ resolving: { applies: true, checked: false, inHand: false } })}
+          >
+            Still unknown
+          </button>
+          <button
+            type="button"
+            className={FACT_CHIP}
+            data-on={resolving?.checked === true && resolving.inHand === false}
+            onClick={() => onPatch({ resolving: { applies: true, checked: true, inHand: false } })}
+          >
+            I looked. It isn’t there.
+          </button>
+          <button
+            type="button"
+            className={FACT_CHIP}
+            data-on={resolving?.inHand === true}
+            onClick={() => onPatch({ resolving: { applies: true, checked: true, inHand: true } })}
+          >
+            I already have it
+          </button>
+        </div>
+      </section>
+      <section className="flex flex-col gap-2 rounded-2xl bg-card p-3.5">
+        <p className="font-medium">What would switching cost?</p>
+        <p className="text-sm text-muted-foreground">Optional. Leave it blank if money isn’t the limit.</p>
+        <div className="grid grid-cols-3 gap-2">
+          <Input
+            inputMode="decimal"
+            aria-label="Already paid"
+            placeholder="Paid"
+            defaultValue={saved.paid ?? ""}
+            className="h-12 rounded-2xl bg-background px-3 text-base"
+            onChange={(event) => money("paid", event.target.value)}
+          />
+          <Input
+            inputMode="decimal"
+            aria-label="What you could get back"
+            placeholder="Back"
+            defaultValue={saved.recoverable ?? ""}
+            className="h-12 rounded-2xl bg-background px-3 text-base"
+            onChange={(event) => money("recoverable", event.target.value)}
+          />
+          <Input
+            inputMode="decimal"
+            aria-label="Extra to switch"
+            placeholder="Extra"
+            defaultValue={saved.extra ?? ""}
+            className="h-12 rounded-2xl bg-background px-3 text-base"
+            onChange={(event) => money("extra", event.target.value)}
+          />
+        </div>
+        {cost != null ? (
+          <p className="text-sm text-muted-foreground">Switching costs {cost}.</p>
+        ) : null}
+      </section>
     </div>
   );
 }
