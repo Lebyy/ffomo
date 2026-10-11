@@ -2,18 +2,18 @@
 
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { Bubble } from "@/components/chat";
 import { Fit } from "@/components/fit";
 import { Pair, Shell } from "@/components/shell";
 import { Pet } from "@/components/pet";
-import { coinLand, pickPlay, pulseLine, readPlays, rememberPlay, type GutRecord, type Lean, type Ritual } from "@/lib/flow";
-import { getStream, reactionVerdict, watchLive } from "@/lib/watch";
+import { coinLand, pickPlay, pulseLine, readPlays, rememberPlay, type Felt, type GutRecord, type Lean, type Ritual } from "@/lib/flow";
+import { getStream, getWatchVideo, reactionVerdict, watchLive } from "@/lib/watch";
 import { PulseRead } from "./pulse";
 
 type Side = "a" | "b";
 type Phase = "spin" | "watch" | "read" | "pulse";
 
 const BIG = "ledge h-13 w-full rounded-2xl font-pixel text-lg font-semibold";
-const QUIET = "ledge ledge-quiet h-13 w-full rounded-2xl text-base";
 const COIN = "ffomo-coin";
 
 function lastCoin(): Side | null {
@@ -32,6 +32,24 @@ function reduced() {
   );
 }
 
+// Square crop of the live camera, mirrored the way they saw it. Stays on the phone.
+function frameOf(video: HTMLVideoElement | null) {
+  if (!video || video.readyState < 2 || video.videoWidth < 2) return "";
+  const side = 280;
+  const canvas = document.createElement("canvas");
+  canvas.width = side;
+  canvas.height = side;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+  const crop = Math.min(video.videoWidth, video.videoHeight);
+  const sx = (video.videoWidth - crop) / 2;
+  const sy = (video.videoHeight - crop) / 2;
+  ctx.translate(side, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(video, sx, sy, crop, crop, 0, 0, side, side);
+  return canvas.toDataURL("image/jpeg", 0.72);
+}
+
 const SPIN_TITLE: Record<Ritual, string> = {
   cards: "Two cards",
   doors: "Two doors",
@@ -42,12 +60,12 @@ const SPIN_TITLE: Record<Ritual, string> = {
 };
 
 const SPIN_SUB: Record<Ritual, string> = {
-  cards: "One turns over. Your face stays on this phone.",
-  doors: "One opens. Your face stays on this phone.",
-  point: "Watch where it stops. Your face stays on this phone.",
-  pets: "One steps forward. Your face stays on this phone.",
-  hold: "Press and hold. Your face stays on this phone.",
-  scratch: "Scratch the card. Your face stays on this phone.",
+  cards: "One turns over.",
+  doors: "One opens.",
+  point: "Watch where it stops.",
+  pets: "One steps forward.",
+  hold: "Press and hold.",
+  scratch: "Scratch the card.",
 };
 
 const SPIN_WORD: Record<Ritual, string> = {
@@ -372,10 +390,12 @@ export function GutCheck({
   const [phase, setPhase] = useState<Phase>("spin");
   const [land, setLand] = useState<Side | null>(null);
   const [line, setLine] = useState("");
+  const [told, setTold] = useState(false);
   const [pulse, setPulse] = useState<GutRecord["pulse"]>();
   const [extra, setExtra] = useState<"smile" | "pulse">("smile");
   const [camOn, setCamOn] = useState(false);
   const camRef = useRef<HTMLVideoElement>(null);
+  const [still, setStill] = useState("");
   const name = (key: Side) => (key === "a" ? pathA : pathB);
   const landedName = land ? name(land) : "";
   const saidKey = said.join("\n");
@@ -406,8 +426,15 @@ export function GutCheck({
         window.setTimeout(() => {
           if (cancel) return;
           const read = reactionVerdict(at, performance.now(), watchLive());
+          setStill(frameOf(camRef.current) || frameOf(getWatchVideo()));
           setLine(read.line);
+          setTold(false);
           setPhase("read");
+          timers.push(
+            window.setTimeout(() => {
+              if (!cancel) setTold(true);
+            }, reduced() ? 250 : 1100),
+          );
         }, watchMs),
       );
     }
@@ -441,7 +468,7 @@ export function GutCheck({
     };
   }, [decision, pathA, pathB, saidKey, playMs, watchMs]);
 
-  // Show the same session camera beside the play while it lands and reads.
+  // Same camera the face read already opened. No second prompt.
   useEffect(() => {
     if (phase !== "spin" && phase !== "watch") return;
     let stop = false;
@@ -466,84 +493,103 @@ export function GutCheck({
     };
   }, [phase]);
 
-  function done(ignored: boolean) {
+  const askedAt = useRef(0);
+  useEffect(() => {
+    if (told) askedAt.current = performance.now();
+  }, [told]);
+
+  function answer(felt: Felt) {
     if (!land) return;
+    const latencyMs = askedAt.current
+      ? Math.round(performance.now() - askedAt.current)
+      : undefined;
     onDone({
       path: land,
       line,
-      ignored,
+      ignored: false,
+      felt,
+      latencyMs,
       play,
-      pulse: !ignored ? pulse : undefined,
+      still: still || undefined,
+      pulse,
     });
   }
 
+  const noFace = line === "Camera stayed off." || line === "Couldn't see a face.";
   const noRead =
-    line === "Camera stayed off." ||
-    line === "Couldn't see a face." ||
-    (phase === "read" && extra === "pulse" && (pulse?.a ?? pulse?.b) == null);
+    noFace || (phase === "read" && extra === "pulse" && (pulse?.a ?? pulse?.b) == null);
+  const otherName = land === "a" ? pathB : land === "b" ? pathA : "";
 
-  const title =
-    phase === "read" ? line : phase === "watch" ? landedName : SPIN_TITLE[play];
+  const evaluating = phase === "read" && !told;
+  const title = evaluating
+    ? landedName
+    : phase === "read"
+      ? line
+      : phase === "watch"
+        ? landedName
+        : SPIN_TITLE[play];
 
   function readSub() {
-    if (noRead) return "Nothing to keep from that.";
+    if (noFace) return "The question still works.";
     if (extra === "pulse")
       return "A 12-second average from your face. Up can mean excited or nervous. Not medical. Not a decision.";
-    if (line === "You smiled.")
-      return `A smile at ${landedName}. Read on this phone. A smile is not a decision.`;
+    if (line === "You smiled.") return `A smile at ${landedName}. Read on this phone.`;
     if (line === "You looked unsure.")
-      return `You looked unsure at ${landedName}, not glad, not sorry. Nothing to lock in. Your call.`;
-    return `No smile at ${landedName}. Read on this phone. Still your call.`;
+      return `You looked unsure at ${landedName}.`;
+    return `No smile at ${landedName}. Read on this phone.`;
   }
 
   const sub =
     phase === "pulse"
       ? "Look at each path. Frames go to the Ffomo server for SmartSpectra, then get dropped."
-      : phase === "read"
-        ? readSub()
-        : phase === "watch"
-          ? "It landed. Fifteen seconds on your face. On this phone."
-          : `${SPIN_SUB[play]} Fifteen seconds.`;
+      : evaluating
+        ? "What your face did."
+        : phase === "read"
+          ? readSub()
+          : phase === "watch"
+            ? "It landed. Fifteen seconds on your face. On this phone."
+            : `${SPIN_SUB[play]} Fifteen seconds.`;
 
   let action: ReactNode;
-  if (phase === "spin" || phase === "watch" || phase === "pulse") {
+  if (phase === "spin" || phase === "watch" || phase === "pulse" || evaluating) {
     action = (
       <Button type="button" className={BIG} disabled>
         {phase === "spin" ? SPIN_WORD[play] : "Reading"}
       </Button>
     );
-  } else if (noRead) {
-    action = (
-      <Button type="button" className={BIG} onClick={() => done(true)}>
-        The card
-      </Button>
-    );
   } else {
     action = (
-      <Pair>
-        <Button type="button" variant="outline" className={QUIET} onClick={() => done(true)}>
-          Leave it out
-        </Button>
-        <Button type="button" className={BIG} onClick={() => done(false)}>
-          Keep it
-        </Button>
-      </Pair>
+      <div className="flex flex-col gap-2">
+        <Pair>
+          <Button type="button" className={BIG} onClick={() => answer("relieved")}>
+            Relieved
+          </Button>
+          <Button type="button" className={BIG} onClick={() => answer("disappointed")}>
+            The other one
+          </Button>
+        </Pair>
+        <button
+          type="button"
+          className="h-11 text-sm text-muted-foreground"
+          onClick={() => answer("unsure")}
+        >
+          Not sure
+        </button>
+      </div>
     );
   }
 
   return (
     <Shell step="Gut check" action={action}>
-      <div className="flex shrink-0 items-start gap-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h1 className="font-pixel leading-[1.1] font-semibold text-balance">
-            <Fit max={26} min={17} lines={2}>
-              {title}
-            </Fit>
-          </h1>
-          <p className="line-clamp-3 text-sm text-pretty text-muted-foreground">{sub}</p>
-        </div>
-        <Pet kind="frog" mood={land ? "idle" : "look"} size={48} />
-      </div>
+      <Bubble from="ffomo" face pet="frog" mood={land ? "idle" : "look"}>
+        <p className="font-pixel text-lg leading-tight font-semibold text-balance">{title}</p>
+        <p className="mt-1 text-pretty text-muted-foreground">{sub}</p>
+        {phase === "spin" ? (
+          <p className="mt-1 text-pretty text-muted-foreground">
+            Camera's on. Stays on this phone.
+          </p>
+        ) : null}
+      </Bubble>
       {phase === "spin" || phase === "watch" ? (
         <div className="grid min-h-0 flex-1 grid-cols-2 gap-3">
           <div className="relative h-full min-h-0">
@@ -595,11 +641,12 @@ export function GutCheck({
             setPulse(read ?? undefined);
             setLine(problem || pulseLine(read ?? undefined, pathA, pathB));
             setExtra("pulse");
+            setTold(true);
             setPhase("read");
           }}
         />
       ) : null}
-      {phase === "read" && extra === "smile" && !pulse && !noRead ? (
+      {phase === "read" && told && extra === "smile" && !pulse && !noRead ? (
         <button
           type="button"
           className="shrink-0 text-left text-sm text-muted-foreground"
@@ -612,15 +659,35 @@ export function GutCheck({
         </button>
       ) : null}
       {phase === "read" ? (
-        <div className="grid min-h-0 flex-1 place-items-center rounded-3xl bg-card/60">
-          <Pet
-            kind={noRead ? "owl" : "frog"}
-            mood={
-              line === "You smiled." ? "cheer" : noRead ? "sleep" : "look"
-            }
-            size={72}
-          />
-        </div>
+        <>
+          <div className="relative min-h-0 flex-1 overflow-hidden rounded-3xl bg-muted">
+            {still ? (
+              <img
+                src={still}
+                alt="Your face when it landed"
+                className="replay-still h-full w-full object-cover"
+              />
+            ) : (
+              <div className="grid h-full place-items-center">
+                <Pet
+                  kind={noFace ? "owl" : "frog"}
+                  mood={line === "You smiled." ? "cheer" : noFace ? "sleep" : "look"}
+                  size={72}
+                />
+              </div>
+            )}
+            {still ? (
+              <p className="absolute inset-x-0 bottom-0 bg-black/55 px-3 py-2 text-sm text-white">
+                Stays on this phone.
+              </p>
+            ) : null}
+          </div>
+          {told ? (
+            <p className="shrink-0 text-sm text-pretty">
+              It landed on {landedName}. Did you wish it had landed on {otherName}?
+            </p>
+          ) : null}
+        </>
       ) : null}
     </Shell>
   );

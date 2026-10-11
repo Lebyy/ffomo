@@ -1,5 +1,6 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import { DecisionSync } from "@/components/decision-sync";
+import { Field } from "@/components/field";
 import { RegisterApp } from "@/components/pwa";
 import { shadcn } from "@clerk/ui/themes";
 import type { Metadata, Viewport } from "next";
@@ -81,9 +82,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </div>
         <div className="phone-app flex h-dvh flex-col overflow-hidden">
           <ClerkProvider appearance={clerkAppearance}>
-            <RegisterApp />
-            <DecisionSync />
-            {children}
+            <Field>
+              <RegisterApp />
+              <DecisionSync />
+              {children}
+            </Field>
           </ClerkProvider>
         </div>
       </body>

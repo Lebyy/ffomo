@@ -524,13 +524,13 @@ select {
 
 .point-move {
   transform-origin: center;
-  transition: transform 420ms var(--ease-out);
+  transition: transform 1100ms cubic-bezier(0.16, 0.84, 0.24, 1);
 }
 
 .pet-step {
   transition:
-    transform 360ms var(--ease-out),
-    opacity 360ms var(--ease-out);
+    transform 900ms cubic-bezier(0.16, 0.84, 0.24, 1),
+    opacity 900ms cubic-bezier(0.16, 0.84, 0.24, 1);
 }
 
 .pet-step.is-live {
@@ -648,6 +648,54 @@ select {
   animation: none;
 }
 
+.animata-blobs {
+  transition: translate 800ms var(--ease-out);
+}
+
+.field:has([data-room="Gut check"]) .animata-blobs { translate: 14% 10%; }
+.field:has([data-room="Both sides"]) .animata-blobs { translate: -12% 16%; }
+.field:has([data-room="The card"]) .animata-blobs { translate: 8% -14%; }
+.field:has([data-room="Future you"]) .animata-blobs { translate: -8% 18%; }
+.field:has([data-room="Questions"]) .animata-blobs { translate: 16% -8%; }
+.field:has([data-room="Must-haves"]) .animata-blobs { translate: -16% 6%; }
+.field:has([data-room="The cost"]) .animata-blobs { translate: 6% 14%; }
+.field:has([data-room="Check first"]) .animata-blobs { translate: -6% -12%; }
+.field:has([data-room="Try it on"]) .animata-blobs { translate: 12% 8%; }
+.field:has([data-room="Door closed"]) .animata-blobs { translate: -10% -16%; }
+.field:has([data-room="Check in"]) .animata-blobs { translate: 10% -6%; }
+.field:has([data-room="Your reasons"]) .animata-blobs { translate: -14% 12%; }
+
+.typing i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.35;
+  animation: type-dot 1s infinite;
+}
+
+.typing i:nth-of-type(2) {
+  animation-delay: 0.15s;
+}
+
+.typing i:nth-of-type(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes type-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+    translate: 0 0;
+  }
+  40% {
+    opacity: 1;
+    translate: 0 -3px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-slot="button"]:active,
   [data-slot="toggle"]:active,
@@ -694,8 +742,14 @@ select {
   .pet-step,
   .point-mark,
   .point-wander,
-  .coin-spin {
+  .coin-spin,
+  .replay-still,
+  .animate-pop-blob,
+  .animate-bg-position,
+  .animata-blobs,
+  .typing i {
     animation: none !important;
+    transition: none;
   }
 
   .meter-grow {
@@ -837,6 +891,19 @@ select {
   }
   100% {
     top: 48%;
+  }
+}
+
+.replay-still {
+  animation: replay-settle 420ms var(--ease-out, ease-out) both;
+}
+
+@keyframes replay-settle {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
   }
 }
 

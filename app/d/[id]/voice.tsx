@@ -10,6 +10,7 @@ type Screen = string;
 function lineFor(saved: SavedDecision, screen: Screen, live: LiveSearch) {
   const a = saved.result?.pathA ?? saved.fork?.pathA ?? "";
   const b = saved.result?.pathB ?? saved.fork?.pathB ?? "";
+  if (screen === "stakes") return "How big is it, and how hard is it to undo?";
   if (screen === "ask") return `You said: ${saved.decision}. I'll name both paths.`;
   if (screen === "searching") {
     if (live.stories.length)
@@ -24,17 +25,13 @@ function lineFor(saved: SavedDecision, screen: Screen, live: LiveSearch) {
     ).length;
     return `${n} posts. ${a} and ${b} both stay up.`;
   }
-  if (screen === "gut") return "Something lands on a path. Then it reads your face on this phone.";
+  if (screen === "gut") return "Something lands on a path. Then it reads your face. Stays on this phone.";
   if (screen === "card") {
     if (!saved.kept) return "Which one are you keeping?";
     const path = saved.kept === "a" ? a : b;
-    return saved.reasons
-      ? `You kept ${path}.`
-      : `You kept ${path}. Write why before you close the door.`;
+    return `You picked ${path}. The other one is closed.`;
   }
-  if (screen === "reasons") return "Why this one? If you come back worried, this shows first.";
-  if (screen === "lock") return "Door closed. Your reasons, your curve, and your numbers are here.";
-  if (screen === "checks") return "How is it now?";
+  if (screen === "reasons") return "One sentence. Then the other one stays closed.";
   if (screen === "tryon") return "A photo of the thing, or of you. Same shot, both options.";
   if (screen === "future") return "Only from the posts on screen.";
   return "";

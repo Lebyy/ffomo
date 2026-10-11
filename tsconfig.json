@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "lib/strength.check.ts", "lib/flow.check.ts", "lib/links.check.ts", "lib/pets.check.ts", "lib/gallery.check.ts", "lib/records.check.ts", "lib/fork.check.ts", "lib/gut.check.ts", "lib/lines.check.ts", "lib/store.check.ts"]
+  "exclude": ["node_modules", "lib/settle.check.ts", "lib/strength.check.ts", "lib/flow.check.ts", "lib/links.check.ts", "lib/pets.check.ts", "lib/gallery.check.ts", "lib/records.check.ts", "lib/fork.check.ts", "lib/gut.check.ts", "lib/lines.check.ts", "lib/store.check.ts"]
 }

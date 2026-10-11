@@ -29,6 +29,7 @@ export type GutRecord = {
   ignored: boolean;
   still?: string;
   felt?: Felt;
+  latencyMs?: number;
   pulse?: { a: number | null; b: number | null };
   play?: Ritual;
 };
@@ -40,6 +41,16 @@ export const FELT_LINE: Record<Felt, string> = {
   unsure: "Not sure yet. Still open.",
   unrelated: "Something else was on my mind.",
 };
+
+export const MOODS = ["soda", "film", "pool", "candy"] as const;
+export type Mood = (typeof MOODS)[number];
+
+// Same decision keeps its color. The next one lands on a different one.
+export function moodOf(id: string): Mood {
+  let n = 0;
+  for (let i = 0; i < id.length; i++) n = (n * 33 + id.charCodeAt(i)) >>> 0;
+  return MOODS[n % MOODS.length];
+}
 
 export const PLAYS = ["cards", "doors", "point", "pets", "hold", "scratch"] as const;
 export type Ritual = (typeof PLAYS)[number];
@@ -139,6 +150,7 @@ export type Check = {
   due: number;
   feeling?: "glad" | "regret" | "same";
   note?: string;
+  score?: number;
 };
 
 export const FEARS: { id: Fear; label: string }[] = [
@@ -158,7 +170,7 @@ export const STEP_LABEL: Record<Step, string> = {
   future: "Future you",
   tryon: "Try it on",
   gut: "Gut check",
-  card: "The card",
+  card: "Your call",
   reasons: "Your reasons",
   lock: "Door closed",
   checks: "Check in",
@@ -177,9 +189,11 @@ export type ForkInfo = {
   when: "not-yet" | "already";
   fear?: Fear;
   size?: "small" | "big";
+  undo?: "easy" | "hard";
   thing?: boolean;
   photo?: boolean;
   facts?: number;
+  records?: number;
 };
 
 export function stakesOf(fork: Pick<ForkInfo, "decision" | "size">) {
@@ -236,11 +250,23 @@ export function disagree(
   );
 }
 
+function settleSteps(fork: ForkInfo): Step[] {
+  const size = fork.size === "small" ? "small" : "big";
+  if (size === "small" && fork.undo === "easy") return ["gut", "card"];
+  const steps: Step[] = ["facts"];
+  if ((fork.records ?? 0) > 0) steps.push("sides");
+  if (size === "big") steps.push("must");
+  if (isThing(fork) && fork.photo) steps.push("tryon");
+  steps.push("gut", "card");
+  return steps;
+}
+
 export function stepsFor(fork: ForkInfo): Step[] {
   const big = stakesOf(fork) === "big";
-  const first: Step[] = big || (fork.facts ?? 0) > 0 ? ["facts", "sides"] : ["sides"];
   if (sensitiveOf(fork.decision))
-    return big ? [...first, "must", "card"] : [...first, "card"];
+    return big ? ["facts", "sides", "must", "card"] : ["sides", "card"];
+  if (fork.undo) return settleSteps(fork);
+  const first: Step[] = big || (fork.facts ?? 0) > 0 ? ["facts", "sides"] : ["sides"];
   const steps: Step[] = [...first];
   if (fork.fear === "money" || (big && fork.when === "already"))
     steps.push("cost");
@@ -273,7 +299,7 @@ export function nextLabel(step: Step, fork: ForkInfo) {
   if (next === "gut") return "Gut check";
   if (next === "future") return "Future you";
   if (next === "tryon") return "Try it on";
-  if (next === "card") return "The card";
+  if (next === "card") return "Your call";
   if (next === "cost") return "The cost";
   if (next === "must") return "Must-haves";
   return "Next";
@@ -351,4 +377,150 @@ export function gutCopy(gut: GutRecord) {
   const showLine =
     gut.line && (gut.line === "Camera stayed off." || !gut.ignored);
   return [felt, showLine ? gut.line : ""].filter(Boolean).join(" ");
+}
+
+function sentence(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+// The words they tapped. The category is only the fallback.
+export function fearHead(fear?: Fear, note?: string) {
+  const words = note?.trim();
+  if (words) return words;
+  return FEARS.find((item) => item.id === fear)?.label ?? "You can stop looking";
+}
+
+// The stuck point, in their words. The category is the fallback.
+export function problemOf(fear?: Fear, note?: string) {
+  const words = note?.trim();
+  if (words) return words;
+  if (fear === "fact") return "Missing a fact.";
+  if (fear === "others") return "Comparing with other people.";
+  if (fear === "money") return "Need the cost.";
+  if (fear === "want") return "Don't know which one.";
+  if (fear === "later") return "Don't know how it feels later.";
+  return "Need what happened later.";
+}
+
+// One thing to do. Their number, else the thing people wished they'd checked.
+export function nextDo({
+  wish,
+  cost,
+  picked = false,
+}: {
+  wish?: string;
+  cost?: string | null;
+  picked?: boolean;
+}) {
+  const bill = cost?.trim();
+  if (bill) return bill;
+  const known = sentence(wish ?? "");
+  if (known) return known;
+  return picked ? "Do the one you picked." : "Pick one.";
+}
+
+// One sentence that answers the thing they were afraid of missing.
+export function fearAnswer({
+  fear,
+  wish,
+  later,
+  cost,
+  felt,
+  downside,
+}: {
+  fear?: Fear;
+  wish?: string;
+  later?: string;
+  cost?: string | null;
+  felt?: string;
+  downside?: string;
+}) {
+  const known = sentence(wish ?? "");
+  const after = sentence(later ?? "");
+  const flaw = sentence(downside ?? "");
+  const yours = felt?.trim() ?? "";
+  if (fear === "fact")
+    return known
+      ? `They wish they'd known this: ${known}`
+      : "No post said the fact you were missing.";
+  if (fear === "others")
+    return after
+      ? `Someone wrote later, not on day one: ${after}`
+      : "No one has written about this later yet.";
+  if (fear === "money")
+    return cost?.trim() || "The posts don't know your cost.";
+  if (fear === "want")
+    return yours ? `${yours} Your call.` : "Still open. Your call.";
+  if (fear === "later")
+    return after
+      ? `Later, people reported: ${after}`
+      : "No matching later point on both paths.";
+  return flaw
+    ? `The other path, later: ${flaw}`
+    : "Both paths are here. You can stop looking.";
+}
+
+export function laterWhen(months?: number) {
+  if (months == null) return "Time not said";
+  if (months < 1) return "The first weeks";
+  if (months === 1) return "A month later";
+  if (months < 12) return `${months} months later`;
+  if (months === 12) return "A year later";
+  const years = Math.floor(months / 12);
+  const extra = months % 12;
+  if (extra === 0) return years === 1 ? "A year later" : `${years} years later`;
+  return `${months} months later`;
+}
+
+type LaterStory = {
+  path: "a" | "b";
+  text: string;
+  url?: string;
+  monthsLater?: number;
+  feeling?: string;
+  strength?: number;
+  kind?: string;
+};
+
+// The later post on the path they are not taking. Before a pick, one from each side.
+// The sentence is the post, so two decisions never get the same line.
+export function fomoHits(
+  result: { pathA: string; pathB: string; stories: LaterStory[] },
+  kept?: "a" | "b",
+) {
+  const order: ("a" | "b")[] = kept ? [kept === "a" ? "b" : "a"] : ["a", "b"];
+  return order.flatMap((path) => {
+    let best: LaterStory | null = null;
+    let bestScore = -1;
+    for (const story of result.stories) {
+      if (story.path !== path || story.kind === "sketch" || !story.text.trim()) continue;
+      const later = story.monthsLater ?? 0;
+      const flaw = story.feeling === "regret" || story.feeling === "mixed" ? 1 : 0;
+      const score = later * 10 + flaw * 8 + (story.strength ?? 1) + (story.url ? 1 : 0);
+      if (score > bestScore) {
+        best = story;
+        bestScore = score;
+      }
+    }
+    if (!best) return [];
+    return [
+      {
+        path,
+        name: path === "a" ? result.pathA : result.pathB,
+        when: laterWhen(best.monthsLater),
+        text: sentence(best.text),
+        url: best.url,
+      },
+    ];
+  });
+}
+
+// Their answer is the preference. Unsure, or a face they left out, stays open.
+export function wishPick(gut: GutRecord | undefined): "a" | "b" | null {
+  if (!gut?.felt || gut.ignored) return null;
+  if (gut.felt === "relieved") return gut.path;
+  if (gut.felt === "disappointed") return gut.path === "a" ? "b" : "a";
+  return null;
 }

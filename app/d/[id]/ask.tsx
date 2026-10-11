@@ -7,7 +7,8 @@ import { Progress, Shell } from "@/components/shell";
 import { FEARS, stakesOf, type Fear } from "@/lib/flow";
 import type { Fork } from "@/lib/schema";
 import type { Answer, SavedDecision } from "@/lib/store";
-import { LINK, NextButton, Pick, QuietButton, Title } from "./screens";
+import { Bubble, Typing } from "@/components/chat";
+import { LINK, NextButton, Pick, QuietButton } from "./screens";
 
 const asking = new Map<string, Promise<Fork>>();
 
@@ -34,7 +35,7 @@ function fetchFork(saved: SavedDecision) {
   return pending;
 }
 
-const FEAR_Q = "What are you afraid of missing?";
+const FEAR_Q = "What's missing?";
 
 type Question = { text: string; choices: string[]; fear?: boolean };
 
@@ -46,7 +47,7 @@ export function AskScreen({
 }: {
   saved: SavedDecision;
   onFork: (fork: Fork, paired?: boolean) => void;
-  onDone: (answers: Answer[], fear?: Fear, fearLine?: string) => void;
+  onDone: (answers: Answer[], fear?: Fear, fearNote?: string) => void;
   onBack: () => void;
 }) {
   const fork = saved.fork;
@@ -124,17 +125,16 @@ export function AskScreen({
   function finish() {
     const answers: Answer[] = [];
     let fear: Fear | undefined;
-    let fearLine: string | undefined;
+    let fearNote: string | undefined;
     questions.forEach((question, i) => {
       const value = replies[i];
       if (!value) return;
       if (question.fear) {
-        const picked = fearOptions.find((item) => item.label === value);
-        fear = picked?.id;
-        fearLine = picked?.label;
+        fear = fearOptions.find((item) => item.label === value)?.id;
+        fearNote = value;
       } else answers.push({ q: question.text, a: value });
     });
-    onDone(answers, fear, fearLine);
+    onDone(answers, fear, fearNote);
   }
 
   const typed = draft.trim();
@@ -180,116 +180,140 @@ export function AskScreen({
           onBack();
         }}
       >
-        <Title
-          sub={saved.when === "already" ? "Already did" : "Not yet"}
-          pet="owl"
-          mood={done ? "cheer" : ready ? "idle" : "look"}
-        >
-          {saved.decision}
-        </Title>
-        {saved.shot ? (
-          <img
-            src={saved.shot}
-            alt=""
-            className="h-16 w-16 shrink-0 rounded-2xl object-cover"
-          />
-        ) : null}
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto [scrollbar-width:none]">
+          <Bubble from="you">
+            <p className="line-clamp-3">{saved.decision}</p>
+            <p className="mt-1 text-xs opacity-80">
+              {saved.when === "already" ? "Already chose" : "Haven’t chosen"}
+            </p>
+            {saved.shot ? (
+              <img
+                src={saved.shot}
+                alt=""
+                className="mt-2 h-16 w-16 rounded-xl object-cover"
+              />
+            ) : null}
+          </Bubble>
+
+          {replies.slice(0, index).map((answer, i) =>
+            answer ? (
+              <Bubble key={questions[i]?.text ?? i} from="you">
+                <p className="line-clamp-3">{answer}</p>
+              </Bubble>
+            ) : null,
+          )}
+
+          {!fork && !failed ? <Typing /> : null}
+
+          {failed && !fork ? (
+            <Bubble from="ffomo" face>
+              <p>
+                {failed} You can still look.
+              </p>
+            </Bubble>
+          ) : null}
+
+          {fork && !choosing ? (
+            <Bubble from="ffomo" face>
+              <p>
+                <Fit max={15} min={12} lines={2}>
+                  {fork.pathA}
+                </Fit>
+              </p>
+              <p className="my-1 font-pixel text-xs text-muted-foreground">or</p>
+              <p>
+                <Fit max={15} min={12} lines={2}>
+                  {fork.pathB}
+                </Fit>
+              </p>
+            </Bubble>
+          ) : null}
+
+          {choosing ? (
+            <Bubble from="ffomo" face>
+              <p className="font-medium">
+                You named {options.length}. Which two first?
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                Tap two, in the order you think of them.
+              </p>
+            </Bubble>
+          ) : null}
+
+          {current ? (
+            <Bubble key={current.text} from="ffomo" face>
+              <p className="font-medium">{current.text}</p>
+              <p className="mt-1 font-pixel text-xs text-muted-foreground tabular-nums">
+                {index + 1}/{questions.length}
+              </p>
+            </Bubble>
+          ) : null}
+
+          {done ? (
+            <Bubble from="ffomo" face>
+              <p>
+                {saved.shot
+                  ? "Got it. Now people who chose something like this."
+                  : "Got it. Now the people who already chose."}
+              </p>
+            </Bubble>
+          ) : null}
+
+          {answered > 0 && !done ? (
+            <button
+              type="button"
+              className={`shrink-0 self-start text-sm ${LINK}`}
+              onClick={() => setIndex(0)}
+            >
+              {answered} answered · Change
+            </button>
+          ) : null}
+          {done && index > 0 ? (
+            <button
+              type="button"
+              className={`self-start text-sm ${LINK}`}
+              onClick={() => setIndex(0)}
+            >
+              Change an answer
+            </button>
+          ) : null}
+        </div>
 
         {choosing ? (
-          <section className="enter-fade flex min-h-0 flex-col gap-3">
-            <h2 className="text-[1.35rem] leading-tight font-semibold text-balance">
-              You named {options.length}. Which two first?
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Tap two, in the order you think of them. The rest stay on your list.
-            </p>
-            <div className="grid shrink-0 grid-cols-2 gap-2">
-              {options.map((option) => {
-                const at = pair.indexOf(option);
-                return (
-                  <Pick
-                    key={option}
-                    pressed={at >= 0}
-                    onClick={() => toggle(option)}
-                    className="min-h-14 px-3 py-2 [&:last-child:nth-child(odd)]:col-span-2"
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className="w-4 shrink-0 font-pixel text-primary">{at >= 0 ? at + 1 : ""}</span>
-                      <Fit max={15} min={11} lines={2} className="font-medium">
-                        {option}
-                      </Fit>
+          <div className="grid shrink-0 grid-cols-2 gap-2">
+            {options.map((option) => {
+              const at = pair.indexOf(option);
+              return (
+                <Pick
+                  key={option}
+                  pressed={at >= 0}
+                  onClick={() => toggle(option)}
+                  className="min-h-14 px-3 py-2 [&:last-child:nth-child(odd)]:col-span-2"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 shrink-0 font-pixel text-primary">
+                      {at >= 0 ? at + 1 : ""}
                     </span>
-                  </Pick>
-                );
-              })}
-            </div>
-          </section>
-        ) : fork ? (
-          <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2">
-            <p className="glass pop-in rounded-xl px-3 py-2 font-semibold">
-              <Fit max={14} min={11} lines={2}>
-                {fork.pathA}
-              </Fit>
-            </p>
-            <span className="font-pixel text-sm text-muted-foreground">or</span>
-            <p className="glass pop-in pop-late rounded-xl px-3 py-2 font-semibold">
-              <Fit max={14} min={11} lines={2}>
-                {fork.pathB}
-              </Fit>
-            </p>
+                    <Fit max={15} min={11} lines={2} className="font-medium">
+                      {option}
+                    </Fit>
+                  </span>
+                </Pick>
+              );
+            })}
           </div>
-        ) : failed ? (
-          <p className="shrink-0 text-sm text-muted-foreground">
-            {failed} You can still look.
-          </p>
-        ) : (
-          <div
-            className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2"
-            aria-hidden
-          >
-            <span className="looking block h-11 rounded-xl bg-muted" />
-            <span className="font-pixel text-sm text-muted-foreground">or</span>
-            <span className="looking looking-late block h-11 rounded-xl bg-muted" />
-          </div>
-        )}
-
-        {answered > 0 && !done ? (
-          <button
-            type="button"
-            className={`shrink-0 self-start text-sm ${LINK}`}
-            onClick={() => setIndex(0)}
-          >
-            {answered} answered · Change
-          </button>
-        ) : null}
-
-        {!fork && !failed ? (
-          <p role="status" className="font-pixel text-lg text-muted-foreground">
-            Reading the decision.
-          </p>
         ) : null}
 
         {current ? (
-          <section
-            key={current.text}
-            className="enter-fade flex min-h-0 flex-col gap-3"
-          >
-            <div className="flex shrink-0 items-baseline justify-between gap-3">
-              <h2 className="line-clamp-3 text-[1.35rem] leading-tight font-semibold text-balance">
-                {current.text}
-              </h2>
-              <span className="shrink-0 font-pixel text-sm text-muted-foreground tabular-nums">
-                {index + 1}/{questions.length}
-              </span>
-            </div>
+          <div key={current.text} className="flex shrink-0 flex-col gap-2">
             {current.choices.length > 0 ? (
-              <div className="grid shrink-0 grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {current.choices.map((choice) => (
                   <Pick
                     key={choice}
                     pressed={replies[index] === choice}
                     onClick={() => reply(choice)}
-                    className="min-h-14 px-3 py-2 text-sm leading-snug [&:last-child:nth-child(odd)]:col-span-2"
+                    className="min-h-12 px-3 py-2 text-sm leading-snug [&:last-child:nth-child(odd)]:col-span-2"
                   >
                     <span className="line-clamp-2">{choice}</span>
                   </Pick>
@@ -297,42 +321,20 @@ export function AskScreen({
               </div>
             ) : null}
             {current.fear ? null : (
-              <label className="flex shrink-0 flex-col gap-1.5">
-                <span className="text-sm text-muted-foreground">
-                  {current.choices.length > 0 ? "Or say it" : "Say it"}
-                </span>
-                <Input
-                  value={draft}
-                  maxLength={200}
-                  autoComplete="off"
-                  enterKeyHint="next"
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && typed) reply(typed);
-                  }}
-                  className="h-12 rounded-2xl px-4 text-base text-foreground md:text-base"
-                />
-              </label>
+              <Input
+                value={draft}
+                maxLength={200}
+                autoComplete="off"
+                enterKeyHint="send"
+                aria-label={current.choices.length > 0 ? "Or say it" : "Say it"}
+                placeholder={current.choices.length > 0 ? "Or say it" : "Say it"}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && typed) reply(typed);
+                }}
+                className="h-12 rounded-2xl px-4 text-base text-foreground md:text-base"
+              />
             )}
-          </section>
-        ) : null}
-
-        {done ? (
-          <div className="enter-fade flex min-h-0 flex-col gap-2">
-            <p className="font-pixel text-2xl leading-tight">
-              {saved.shot
-                ? "Got it. Now people who chose something like this."
-                : "Got it. Now the people who already chose."}
-            </p>
-            {index > 0 ? (
-              <button
-                type="button"
-                className={`self-start text-sm ${LINK}`}
-                onClick={() => setIndex(0)}
-              >
-                Change an answer
-              </button>
-            ) : null}
           </div>
         ) : null}
       </Shell>

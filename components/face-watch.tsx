@@ -2,13 +2,14 @@
 
 import { useEffect, useRef } from "react";
 import { faceScore, loadFace } from "@/lib/gut";
-import { clearWatch, markLive, pushScore, setStream } from "@/lib/watch";
+import { clearWatch, markLive, pushScore, setStream, setWatchVideo } from "@/lib/watch";
 
 // ponytail: blendshapes cover this read if the expression model is still
 // downloading when the coin is about to land. One scale per read.
 
-// One camera for the gut check. No preview here; the gut screen shows the
-// same stream. The expression model runs as fast as the phone allows.
+// One camera for the gut check. This video stays off screen. The gut
+// screen never shows the live picture. The expression model runs as fast
+// as the phone allows.
 export function FaceWatch() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -36,6 +37,7 @@ export function FaceWatch() {
         }
         markLive(true);
         setStream(stream);
+        setWatchVideo(video);
         video.srcObject = stream;
         await video.play();
         const [marker, feel] = await Promise.all([loadFace(), feelPromise]);
@@ -84,6 +86,7 @@ export function FaceWatch() {
       cancelAnimationFrame(raf);
       markLive(false);
       setStream(null);
+      setWatchVideo(null);
       stream?.getTracks().forEach((track) => track.stop());
       video.srcObject = null;
     };

@@ -6,31 +6,28 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Back, Now, Progress, Shell } from "@/components/shell";
 import {
-  dueCheck,
   FEARS,
-  isLocked,
   knownLean,
   nextLabel,
-  LOCK_MS,
   nextStep,
-  type Lean,
   prevStep,
   progressOf,
-  readNow,
   stepsFor,
   type ForkInfo,
+  type Lean,
   type Step,
 } from "@/lib/flow";
+import { factsAnswered, FactGate, StakesAsk } from "@/components/settle-view";
+import { settleFork, thinResult } from "@/lib/settle-map";
+import { switchCost } from "@/lib/settle";
 import type { DecideResult, Story } from "@/lib/schema";
 import { readDecision, saveDecision, type SavedDecision } from "@/lib/store";
 import { AskScreen } from "./ask";
 import {
   CardScreen,
-  ChecksScreen,
   CostScreen,
   FactsScreen,
   FutureScreen,
-  LockScreen,
   MustScreen,
   NO_LIVE,
   ReasonsScreen,
@@ -52,11 +49,19 @@ const GutCheck = dynamic(() => import("./gut").then((mod) => mod.GutCheck), {
   ),
 });
 
+function reopenNote(saved: SavedDecision) {
+  const cost = switchCost(settleFork(saved).numbers);
+  if (cost != null && cost > 0)
+    return `Opening it makes the worry louder. Switching costs ${cost}.`;
+  return "Opening it makes the worry louder.";
+}
+
 function clip(text: string, max: number) {
   return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
 }
 
 function fearWords(saved: SavedDecision) {
+  if (saved.fearNote) return saved.fearNote;
   if (saved.fearLine) return saved.fearLine;
   return FEARS.find((item) => item.id === saved.fear)?.label ?? "";
 }
@@ -174,9 +179,11 @@ function infoOf(saved: SavedDecision): ForkInfo {
     when: saved.when,
     fear: saved.fear,
     size: saved.size,
+    undo: saved.undo,
     thing: saved.thing,
     photo: Boolean(saved.shot),
     facts: saved.result?.facts?.length ?? 0,
+    records: saved.result?.stories.filter((story) => story.kind !== "sketch").length ?? 0,
   };
 }
 
@@ -190,9 +197,7 @@ export function Session({ id }: { id: string }) {
     const current = readDecision(id);
     return Boolean(current && !current.result && current.asked);
   });
-  const [passedLock, setPassedLock] = useState(false);
-  const [passedDue, setPassedDue] = useState(false);
-  const [afterReasons, setAfterReasons] = useState<"card" | "home" | "lock">("card");
+  const [afterReasons, setAfterReasons] = useState<"card" | "home">("card");
   const [live, setLive] = useState<LiveSearch>(NO_LIVE);
   const [wordLean, setWordLean] = useState<Lean>(null);
   const liveRef = useRef(NO_LIVE);
@@ -237,19 +242,26 @@ export function Session({ id }: { id: string }) {
       dropEmpty(extra, merged);
       const to = nextStep(current.step ?? stepsFor(infoOf(merged))[0], infoOf(merged));
       if (!to) return current;
-      const next = { ...merged, step: to };
+      const next = {
+        ...merged,
+        step: to,
+        opens: to === "sides" ? (merged.opens ?? 0) + 1 : merged.opens,
+      };
       saveDecision(next);
       return next;
     });
   }
 
   async function look(current: SavedDecision) {
+    if (current.result && (current.refreshes ?? 0) >= 2) return;
     setPending(true);
     setError("");
     bumpLive(NO_LIVE);
     try {
       const result = await fetchDecision(current, onEvent);
       const next = { ...(readDecision(current.id) ?? current), result };
+      const first = next.step ?? stepsFor(infoOf(next))[0];
+      if (first === "sides" && (next.opens ?? 0) === 0) next.opens = 1;
       saveDecision(next);
       setSaved(next);
     } catch (err) {
@@ -333,53 +345,79 @@ export function Session({ id }: { id: string }) {
   }
 
   const info = infoOf(saved);
-  const now = readNow();
-  const due = dueCheck(saved.checks, now);
-  const locked = isLocked(saved.lockUntil, now);
   const result = saved.result;
-  const screen: Step | "ask" | "searching" = pending
-    ? "searching"
-    : !result
-      ? saved.asked
-        ? "sides"
-        : "ask"
-      : locked && !passedLock
-        ? "lock"
-        : due && !passedDue
-          ? "checks"
-          : (saved.step ?? stepsFor(info)[0]);
+  const askingStakes = !saved.undo && !saved.step;
+  const stored = saved.step ?? stepsFor(info)[0];
+  const step = stored === "lock" || stored === "checks" ? "card" : stored;
+  const screen: Step | "ask" | "searching" | "stakes" = askingStakes
+    ? "stakes"
+    : pending
+      ? "searching"
+      : !result
+        ? saved.asked
+          ? "sides"
+          : "ask"
+        : step;
   const progress =
-    screen === "ask"
-      ? 0.06
-      : screen === "searching"
-        ? 0.12
-        : progressOf(screen, info);
+    screen === "stakes"
+      ? 0.04
+      : screen === "ask"
+        ? 0.06
+        : screen === "searching"
+          ? 0.12
+          : progressOf(screen, info);
   const label = nextLabel(
-    screen === "ask" || screen === "searching" ? "sides" : screen,
+    screen === "ask" || screen === "searching" || screen === "stakes" ? "sides" : screen,
     info,
   );
 
+  function reveal() {
+    setSaved((current) => {
+      if (!current) return current;
+      const next = { ...current, refreshes: Math.min(2, (current.refreshes ?? 0) + 1) };
+      saveDecision(next);
+      return next;
+    });
+  }
+
+  function take(path: "a" | "b") {
+    const current = readDecision(id);
+    if ((current?.reasons?.trim().length ?? 0) >= 12) {
+      commit({ kept: path, step: "card", closing: undefined, opening: undefined });
+      return;
+    }
+    commit({ step: "reasons", closing: path, opening: undefined });
+  }
+
+  function reopen() {
+    commit({ step: "reasons", opening: true, closing: undefined });
+  }
+
+  function lookAgain() {
+    setSaved((current) => {
+      if (!current || (current.refreshes ?? 0) >= 2) return current;
+      const next = {
+        ...current,
+        refreshes: Math.min(2, (current.refreshes ?? 0) + 1),
+        step: "sides" as const,
+      };
+      saveDecision(next);
+      return next;
+    });
+  }
+
   function goBack() {
+    if (screen === "stakes" || screen === "ask") {
+      router.push("/");
+      return;
+    }
     if (screen === "searching") {
       cancelLook();
       return;
     }
-    if (screen === "ask") {
-      router.push("/");
-      return;
-    }
-    if (screen === "lock") {
-      setPassedLock(true);
-      return;
-    }
-    if (screen === "checks" && due) {
-      setPassedDue(true);
-      commit({ step: "card" });
-      return;
-    }
     if (screen === "reasons") {
       setAfterReasons("card");
-      commit({ step: "card" });
+      commit({ step: "card", closing: undefined, opening: undefined });
       return;
     }
     if (screen === "card") {
@@ -398,6 +436,16 @@ export function Session({ id }: { id: string }) {
   function body() {
     if (!saved) return null;
 
+    if (screen === "stakes") {
+      return (
+        <Shell step="How big">
+          <StakesAsk
+            onAnswer={(size, undo) => commit({ size, undo })}
+          />
+        </Shell>
+      );
+    }
+
     if (screen === "ask") {
       return (
         <AskScreen
@@ -406,21 +454,29 @@ export function Session({ id }: { id: string }) {
           onFork={(fork, paired) =>
             commit({
               fork,
-              size: fork.size,
+              size: saved.undo ? saved.size : fork.size,
               thing: fork.thing || undefined,
               paired: paired ? true : undefined,
             })
           }
-          onDone={(answers, fear, fearLine) => {
+          onDone={(answers, fear, fearNote) => {
+            const current = readDecision(saved.id) ?? saved;
             const next: SavedDecision = {
-              ...(readDecision(saved.id) ?? saved),
+              ...current,
               asked: true,
               answers,
               fear,
-              fearLine,
+              fearNote,
             };
             if (!fear) delete next.fear;
-            if (!fearLine) delete next.fearLine;
+            if (!fearNote) delete next.fearNote;
+            if (current.size === "small" && current.undo === "easy" && current.fork) {
+              next.result = thinResult(current.fork.pathA, current.fork.pathB);
+              next.step = "gut";
+              saveDecision(next);
+              setSaved(next);
+              return;
+            }
             saveDecision(next);
             setSaved(next);
             void look(next);
@@ -449,7 +505,22 @@ export function Session({ id }: { id: string }) {
     }
 
     if (screen === "facts" && result) {
-      return <FactsScreen result={result} label={label} onNext={() => forward()} />;
+      return (
+        <FactsScreen
+          result={result}
+          label={label}
+          ready={factsAnswered(saved)}
+          gate={
+            <FactGate
+              pathA={result.pathA}
+              pathB={result.pathB}
+              saved={saved}
+              onPatch={commit}
+            />
+          }
+          onNext={() => forward()}
+        />
+      );
     }
 
     if (screen === "cost") {
@@ -462,6 +533,7 @@ export function Session({ id }: { id: string }) {
               : undefined
           }
           label={label}
+          named={saved.fear === "money" ? fearWords(saved) || "Money" : undefined}
           onNext={(cost) => forward({ cost })}
           onSkip={() => forward({ cost: undefined })}
         />
@@ -473,9 +545,11 @@ export function Session({ id }: { id: string }) {
         <MustScreen
           result={result}
           musts={saved.musts}
+          marks={saved.mustMarks}
           enough={saved.enough}
           open={saved.open}
           onSave={(musts) => commit({ musts })}
+          onMarks={(mustMarks) => commit({ mustMarks })}
           onClear={() => commit({ enough: undefined, enoughPath: undefined, open: undefined })}
           onEnough={(check) =>
             commit({ enough: check.sentence, enoughPath: check.path, open: check.open })
@@ -493,6 +567,7 @@ export function Session({ id }: { id: string }) {
           shot={saved.shot}
           onShot={(shot) => commit({ shot: shot || undefined })}
           label={label}
+          named={saved.fear === "later" ? fearWords(saved) || "How it will feel later" : undefined}
           onNext={() => forward()}
         />
       );
@@ -514,39 +589,14 @@ export function Session({ id }: { id: string }) {
       return (
         <CardScreen
           saved={saved}
-          onCommit={commit}
-          onLook={() => {
-            if (isLocked(saved.lockUntil, readNow())) {
-              setPassedLock(false);
-              return;
-            }
-            void look(saved);
-          }}
-          onAlarm={() => setPassedLock(false)}
-          onLeave={() => {
-            if (!saved.reasons) {
-              setAfterReasons("home");
-              commit({ step: "reasons" });
-              return;
-            }
-            router.push("/");
-          }}
-          onCloseDoor={() => {
-            if (isLocked(saved.lockUntil, readNow())) {
-              setPassedLock(false);
-              return;
-            }
-            if (!saved.reasons) {
-              setAfterReasons("lock");
-              commit({ step: "reasons" });
-              return;
-            }
-            commit({ lockUntil: readNow() + LOCK_MS });
-            setPassedLock(true);
-          }}
+          onPick={take}
+          onLook={lookAgain}
+          onLeave={() => router.push("/")}
+          onCheck={() => commit({ step: "facts" })}
+          onReopen={reopen}
           onReasons={() => {
             setAfterReasons("card");
-            commit({ step: "reasons" });
+            commit({ step: "reasons", closing: undefined, opening: undefined });
           }}
         />
       );
@@ -555,89 +605,34 @@ export function Session({ id }: { id: string }) {
     if (screen === "reasons") {
       return (
         <ReasonsScreen
-          reasons={saved.reasons}
+          reasons={saved.opening ? "" : saved.reasons}
+          intent={saved.opening ? "changed" : saved.closing ? "why" : "edit"}
+          note={saved.opening ? reopenNote(saved) : undefined}
           onSave={(reasons) => {
+            const text = reasons.trim();
+            if (text.length < 12) return;
             const next = afterReasons;
             setAfterReasons("card");
-            const patch: Partial<SavedDecision> = {
-              reasons: reasons || undefined,
-              step: "card",
-            };
-            if (next === "lock") {
-              patch.lockUntil = readNow() + LOCK_MS;
-              setPassedLock(true);
+            if (saved.opening) {
+              const current = readDecision(id);
+              commit({
+                kept: undefined,
+                challenges: (current?.challenges ?? 0) + 1,
+                unlockNote: text,
+                step: "card",
+                opening: undefined,
+                closing: undefined,
+              });
+              return;
             }
-            commit(patch);
+            commit({
+              ...(saved.closing ? { kept: saved.closing } : {}),
+              reasons: text,
+              step: "card",
+              closing: undefined,
+              opening: undefined,
+            });
             if (next === "home") router.push("/");
-          }}
-        />
-      );
-    }
-
-    if (screen === "checks") {
-      const path =
-        saved.kept && result
-          ? saved.kept === "a"
-            ? result.pathA
-            : result.pathB
-          : undefined;
-      return (
-        <ChecksScreen
-          key={due?.label ?? "list"}
-          checks={saved.checks ?? []}
-          due={passedDue ? null : due}
-          path={path}
-          onLater={() => {
-            setPassedDue(true);
-            commit({ step: "card" });
-          }}
-          onSave={(checkLabel, feeling, note, share) => {
-            const checks = (saved.checks ?? []).map((item) =>
-              item.label === checkLabel
-                ? { ...item, feeling, note: note || undefined }
-                : item,
-            );
-            commit({ checks });
-            if (share && saved.kept && result) {
-              void fetch("/api/record", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({
-                  id: saved.id,
-                  fork: saved.decision,
-                  pathA: result.pathA,
-                  pathB: result.pathB,
-                  path: saved.kept,
-                  when: checkLabel,
-                  feeling,
-                  words: note || undefined,
-                  size: saved.size,
-                }),
-              }).catch(() => {});
-            }
-          }}
-          onDone={() => commit({ step: "card" })}
-        />
-      );
-    }
-
-    if (screen === "lock") {
-      return (
-        <LockScreen
-          saved={saved}
-          onOpen={(note) => {
-            setPassedLock(true);
-            commit({
-              lockUntil: undefined,
-              unlockNote: note || undefined,
-              step: "card",
-            });
-          }}
-          onRead={() => {
-            setPassedLock(true);
-            commit({
-              step: saved.step && saved.step !== "lock" ? saved.step : "card",
-            });
           }}
         />
       );
@@ -647,20 +642,17 @@ export function Session({ id }: { id: string }) {
       <SidesScreen
         saved={saved}
         error={error}
-        next={label}
-        onLook={() => {
-          if (isLocked(saved.lockUntil, Date.now())) {
-            setPassedLock(false);
-            return;
-          }
-          void look(saved);
-        }}
-        onNext={() => forward()}
+        next={saved.kept ? "Your call" : label}
+        onLook={() => void look(saved)}
+        onReveal={reveal}
+        onNext={() => (saved.kept ? commit({ step: "card" }) : forward())}
       />
     );
   }
 
-  const canSkip = Boolean(result) && !["card", "reasons", "lock", "checks"].includes(screen);
+  const needsFact = stepsFor(info).includes("facts") && !factsAnswered(saved);
+  const canSkip =
+    Boolean(result) && !needsFact && !["card", "reasons", "facts"].includes(screen);
 
   return (
     <Back value={{ label: "Back", go: goBack }}>

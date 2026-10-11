@@ -8,6 +8,7 @@ const samples: Sample[] = [];
 let saw = false;
 let live = false;
 let feed: MediaStream | null = null;
+let watchVideo: HTMLVideoElement | null = null;
 let source: "feel" | "shape" | null = null;
 
 export function watchLive() {
@@ -26,6 +27,14 @@ export function setStream(stream: MediaStream | null) {
 
 export function getStream() {
   return feed;
+}
+
+export function setWatchVideo(video: HTMLVideoElement | null) {
+  watchVideo = video;
+}
+
+export function getWatchVideo() {
+  return watchVideo;
 }
 
 export function clearWatch() {

@@ -13,9 +13,17 @@ import {
   disagree,
   dueCheck,
   coinLand,
+  fearAnswer,
+  fearHead,
+  fomoHits,
+  nextDo,
+  problemOf,
   gutCopy,
   gutRead,
+  wishPick,
   knownLean,
+  moodOf,
+  MOODS,
   isLocked,
   LOCK_MS,
   meterReady,
@@ -156,6 +164,24 @@ assert.deepEqual(
   stepsFor({ decision: "Should I start this medication", when: "not-yet" }),
   ["facts", "sides", "must", "card"],
 );
+assert.deepEqual(
+  stepsFor({ decision: "Which bottle", when: "not-yet", size: "small", undo: "easy" }),
+  ["gut", "card"],
+);
+assert.deepEqual(
+  stepsFor({ decision: "Final sale bottle", when: "not-yet", size: "small", undo: "hard" }),
+  ["facts", "gut", "card"],
+);
+assert.deepEqual(
+  stepsFor({
+    decision: "Finish the degree",
+    when: "already",
+    size: "big",
+    undo: "hard",
+    records: 3,
+  }),
+  ["facts", "sides", "must", "gut", "card"],
+);
 
 assert.deepEqual(
   [...PLAYS],
@@ -165,6 +191,9 @@ assert.equal(pickPlay("abc", []), pickPlay("abc", []));
 const seen = ["cards", "doors", "point"];
 assert.equal(seen.includes(pickPlay("ffomo-1", seen)), false);
 assert.equal(PLAYS.includes(pickPlay("x", [...PLAYS])), true);
+assert.equal(moodOf("ffomo-1"), moodOf("ffomo-1"));
+assert.equal(MOODS.includes(moodOf("ffomo-1")), true);
+assert.notEqual(moodOf("play-0"), moodOf("play-1"));
 
 const at = (s: number, bpm: number, confidence = 80) => ({ at: s * 1e6, bpm, confidence });
 const reads = [at(5, 90), at(12, 70), at(14, 72), at(25, 80), at(29, 82), at(29.5, 60, 5)];
@@ -210,4 +239,76 @@ assert.equal(
 assert.equal(
   gutCopy({ path: "a", line: "You smiled.", ignored: false, felt: "relieved" }),
   "Relieved it landed there. You smiled.",
+);
+assert.equal(wishPick(undefined), null);
+assert.equal(
+  wishPick({ path: "a", line: "You smiled.", ignored: false, felt: "unsure" }),
+  null,
+);
+assert.equal(
+  wishPick({ path: "a", line: "You smiled.", ignored: false, felt: "relieved" }),
+  "a",
+);
+assert.equal(
+  wishPick({ path: "a", line: "You smiled.", ignored: false, felt: "disappointed" }),
+  "b",
+);
+assert.equal(
+  wishPick({ path: "b", line: "No smile.", ignored: true, felt: "relieved" }),
+  null,
+);
+assert.equal(fearHead(undefined, "Someone better out there"), "Someone better out there");
+assert.equal(fearHead("fact"), "A fact");
+assert.equal(fearHead(), "You can stop looking");
+assert.equal(problemOf(undefined, "the stipend"), "the stipend");
+assert.equal(problemOf("fact"), "Missing a fact.");
+assert.equal(problemOf("money"), "Need the cost.");
+assert.equal(problemOf(), "Need what happened later.");
+assert.equal(nextDo({ cost: "Switching costs 400 more." }), "Switching costs 400 more.");
+assert.equal(nextDo({ wish: "the stipend is low." }), "The stipend is low.");
+assert.equal(nextDo({ picked: true }), "Do the one you picked.");
+assert.equal(nextDo({}), "Pick one.");
+assert.equal(
+  fearAnswer({ fear: "fact", wish: "the stipend is low." }),
+  "They wish they'd known this: The stipend is low.",
+);
+assert.equal(fearAnswer({ fear: "fact" }), "No post said the fact you were missing.");
+assert.equal(
+  fearAnswer({ fear: "others", later: "a year later the job was fine." }),
+  "Someone wrote later, not on day one: A year later the job was fine.",
+);
+assert.equal(fearAnswer({ fear: "money" }), "The posts don't know your cost.");
+assert.equal(fearAnswer({ fear: "money", cost: "Switching costs 400 more." }), "Switching costs 400 more.");
+assert.equal(
+  fearAnswer({ fear: "want", felt: "Wished it landed on the other one." }),
+  "Wished it landed on the other one. Your call.",
+);
+assert.equal(fearAnswer({ fear: "later" }), "No matching later point on both paths.");
+assert.equal(
+  fearAnswer({ downside: "the aisle felt cramped." }),
+  "The other path, later: The aisle felt cramped.",
+);
+
+const hits = fomoHits(
+  {
+    pathA: "Stay",
+    pathB: "Go",
+    stories: [
+      { path: "a", text: "week one was loud.", monthsLater: 0, strength: 1, feeling: "glad", url: "https://a.example" },
+      { path: "a", text: "a year on, the commute was the whole life.", monthsLater: 14, strength: 3, feeling: "regret", url: "https://b.example" },
+      { path: "b", text: "still glad at six months.", monthsLater: 6, strength: 2, feeling: "glad", url: "https://c.example" },
+    ],
+  },
+);
+assert.equal(hits.length, 2);
+assert.equal(hits[0].text, "A year on, the commute was the whole life.");
+assert.equal(hits[0].when, "14 months later");
+assert.equal(fomoHits({ pathA: "Stay", pathB: "Go", stories: hits.map(() => ({ path: "a" as const, text: "x", kind: "sketch" })) }, "a").length, 0);
+assert.equal(fomoHits({ pathA: "Stay", pathB: "Go", stories: [] }).length, 0);
+assert.equal(
+  fomoHits(
+    { pathA: "Stay", pathB: "Go", stories: [{ path: "b", text: "the other offer paid less.", monthsLater: 8, url: "https://d.example" }] },
+    "a",
+  )[0].name,
+  "Go",
 );

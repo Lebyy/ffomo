@@ -51,6 +51,20 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --animate-pop-blob: pop-blob 5s infinite;
+  --animate-bg-position: bg-position 3s infinite alternate;
+}
+
+@keyframes pop-blob {
+  0% { transform: scale(1); }
+  33% { transform: scale(1.2); }
+  66% { transform: scale(0.8); }
+  100% { transform: scale(1); }
+}
+
+@keyframes bg-position {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
 }
 
 :root {
@@ -161,4 +175,62 @@
       inset 0 1px 0 color-mix(in oklab, white 26%, transparent),
       0 10px 28px color-mix(in oklab, black 30%, transparent);
   }
+}
+
+/* One color world per decision. The next decision lands on another. */
+.field {
+  background: var(--background);
+  --card: color-mix(in oklch, var(--background) 88%, white 8%);
+  --popover: color-mix(in oklch, var(--background) 88%, transparent);
+  --border: oklch(1 0 0 / 18%);
+  --input: oklch(1 0 0 / 14%);
+  --muted: color-mix(in oklch, var(--background) 74%, transparent);
+  --secondary: color-mix(in oklch, var(--background) 70%, transparent);
+  --accent: var(--secondary);
+}
+
+.field[data-mood="soda"] {
+  --background: oklch(0.17 0.05 305);
+  --primary: oklch(0.9 0.2 135);
+  --primary-foreground: oklch(0.22 0.05 145);
+  --ring: oklch(0.9 0.2 135);
+  --blob-a: oklch(0.62 0.27 330);
+  --blob-b: oklch(0.82 0.19 140);
+  --blob-c: oklch(0.55 0.24 270);
+}
+
+.field[data-mood="film"] {
+  --background: oklch(0.18 0.04 45);
+  --primary: oklch(0.86 0.16 75);
+  --primary-foreground: oklch(0.24 0.05 50);
+  --ring: oklch(0.86 0.16 75);
+  --blob-a: oklch(0.68 0.21 40);
+  --blob-b: oklch(0.62 0.24 10);
+  --blob-c: oklch(0.72 0.14 95);
+}
+
+.field[data-mood="pool"] {
+  --background: oklch(0.16 0.04 200);
+  --primary: oklch(0.86 0.14 195);
+  --primary-foreground: oklch(0.2 0.04 200);
+  --ring: oklch(0.86 0.14 195);
+  --blob-a: oklch(0.72 0.14 195);
+  --blob-b: oklch(0.74 0.16 55);
+  --blob-c: oklch(0.52 0.2 265);
+}
+
+.field[data-mood="candy"] {
+  --background: oklch(0.17 0.05 340);
+  --primary: oklch(0.78 0.2 350);
+  --primary-foreground: oklch(0.22 0.05 350);
+  --ring: oklch(0.78 0.2 350);
+  --blob-a: oklch(0.68 0.24 355);
+  --blob-b: oklch(0.78 0.16 155);
+  --blob-c: oklch(0.55 0.22 300);
+}
+
+.field :where(.bg-card) {
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  backdrop-filter: blur(16px) saturate(1.6);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
 }

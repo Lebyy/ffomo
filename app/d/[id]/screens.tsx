@@ -5,8 +5,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Bubble } from "@/components/chat";
 import { Pair, Shell } from "@/components/shell";
 import { Pager } from "@/components/pager";
+import FluidTabs from "@/components/animata/tabs/fluid-tabs";
 import { Fit } from "@/components/fit";
 import { Pet, type Mood } from "@/components/pet";
 import type { PetKind } from "@/lib/pets";
@@ -14,17 +16,12 @@ import {
   STEP_LABEL,
   costLine,
   disagree,
-  gutCopy,
-  isLocked,
+  fomoHits,
+  problemOf,
   meterReady,
-  pulseLine,
-  readNow,
   reported,
-  scheduleChecks,
   sensitiveOf,
-  showGut,
   stakesOf,
-  type Check,
   type Cost,
 } from "@/lib/flow";
 import { shrinkPhoto } from "@/lib/photo";
@@ -37,6 +34,9 @@ import {
   type Wish,
 } from "@/lib/schema";
 import type { SavedDecision } from "@/lib/store";
+import { SettleRead } from "@/components/settle-view";
+import { settleFork } from "@/lib/settle-map";
+import { crowdWord, orderNote, orderSide, settle, visibleCount } from "@/lib/settle";
 
 export const LINK =
   "rounded-sm text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -77,13 +77,6 @@ function later(months: number | undefined) {
   return `${Math.floor(months / 12)} years later`;
 }
 
-function day(time: number) {
-  return new Date(time).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
-
 export function Title({
   children,
   sub,
@@ -96,21 +89,10 @@ export function Title({
   mood?: Mood;
 }) {
   return (
-    <div className="flex shrink-0 items-start gap-3">
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <h1 className="font-pixel font-semibold text-balance">
-          <Fit max={26} min={16} lines={3} className="leading-[1.1]">
-            {children}
-          </Fit>
-        </h1>
-        {sub ? (
-          <p className="line-clamp-2 text-sm text-pretty text-muted-foreground">
-            {sub}
-          </p>
-        ) : null}
-      </div>
-      {pet ? <Pet kind={pet} mood={mood} size={52} /> : null}
-    </div>
+    <Bubble from="ffomo" face={Boolean(pet)} pet={pet} mood={mood}>
+      <p className="font-pixel text-lg leading-tight font-semibold text-balance">{children}</p>
+      {sub ? <p className="mt-1 text-pretty text-muted-foreground">{sub}</p> : null}
+    </Bubble>
   );
 }
 
@@ -296,6 +278,11 @@ function SideSum({
           </p>
           {ready ? <Bar meter={meter} /> : null}
           <Counts meter={meter} strength={ready ? meter.strength : undefined} />
+          {crowdWord(meter.glad, meter.regret, meter.mixed ?? 0) ? (
+            <p className="text-xs text-muted-foreground">
+              {crowdWord(meter.glad, meter.regret, meter.mixed ?? 0)}
+            </p>
+          ) : null}
           {ready ? null : <p className="text-xs text-muted-foreground">Not enough to add up.</p>}
         </>
       )}
@@ -500,10 +487,9 @@ function StoryCard({ story, opening }: { story: Story; opening?: boolean }) {
 
 function Empty({ pet, children }: { pet: PetKind; children: string }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 rounded-2xl bg-card/60 p-4 text-center">
-      <Pet kind={pet} mood="sad" size={56} />
-      <p className="text-muted-foreground">{children}</p>
-    </div>
+    <Bubble from="ffomo" face pet={pet} mood="sad">
+      <p>{children}</p>
+    </Bubble>
   );
 }
 
@@ -516,6 +502,36 @@ function StoryPager({ stories }: { stories: Story[] }) {
       label="Stories"
       render={(story) => <StoryCard story={story} />}
     />
+  );
+}
+
+function PathStories({
+  result,
+  path,
+  mode,
+  taken,
+  refreshes,
+}: {
+  result: DecideResult;
+  path: "a" | "b";
+  mode: "decide" | "rescue";
+  taken?: "a" | "b";
+  refreshes: number;
+}) {
+  const rows = orderSide(
+    result.stories
+      .filter((story) => story.path === path && story.kind !== "sketch")
+      .map((story) => ({ ...story, stance: story.feeling })),
+    mode,
+    path,
+    taken,
+  );
+  const cap = visibleCount(rows.length, refreshes);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <p className="shrink-0 text-xs text-muted-foreground">{orderNote(mode, path, taken)}</p>
+      <StoryPager stories={rows.slice(0, cap.show)} />
+    </div>
   );
 }
 
@@ -615,17 +631,26 @@ export function FactsScreen({
   result,
   label,
   onNext,
+  gate,
+  ready = true,
 }: {
   result: DecideResult;
   label: string;
   onNext: () => void;
+  gate?: React.ReactNode;
+  ready?: boolean;
 }) {
   const facts = result.facts ?? [];
   return (
     <Shell
       step={STEP_LABEL.facts}
-      action={<NextButton onClick={onNext}>{label}</NextButton>}
+      action={
+        <NextButton disabled={!ready} onClick={onNext}>
+          {label}
+        </NextButton>
+      }
     >
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto [scrollbar-width:none]">
       <Title
         sub={
           facts.length
@@ -646,7 +671,7 @@ export function FactsScreen({
           items={facts}
           label="Facts"
           render={(fact) => (
-            <article className="flex h-full flex-col gap-3 overflow-hidden rounded-2xl border-2 border-primary/35 bg-card p-4">
+            <article className="flex h-full flex-col gap-2 overflow-hidden rounded-2xl rounded-bl-md bg-card p-3.5">
               <p className="flex shrink-0 items-center gap-2 text-sm">
                 <span className="rounded-md bg-primary/15 px-2 py-0.5 font-pixel text-primary">
                   Fact
@@ -667,11 +692,13 @@ export function FactsScreen({
         />
       )}
       {result.unknown?.length ? (
-        <div className="shrink-0 rounded-2xl bg-card/60 p-3">
+        <Bubble from="ffomo">
           <p className="text-xs text-muted-foreground">The posts won’t tell you</p>
-          <p className="line-clamp-2 text-sm">{result.unknown.join(" · ")}</p>
-        </div>
+          <p className="mt-1">{result.unknown.join(" · ")}</p>
+        </Bubble>
       ) : null}
+      {gate}
+      </div>
     </Shell>
   );
 }
@@ -767,28 +794,31 @@ function Tabs<T extends string>({
   onChange: (id: T) => void;
   label: string;
 }) {
+  const index = Math.max(
+    0,
+    options.findIndex((option) => option.id === value),
+  );
   return (
-    <div
-      className="grid shrink-0 gap-1 rounded-2xl bg-muted/60 p-1"
-      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
-      role="group"
-      aria-label={label}
+    <FluidTabs
+      className="shrink-0"
+      activeIndex={index}
+      onActiveIndexChange={(next) => {
+        const option = options[next];
+        if (option) onChange(option.id);
+      }}
     >
-      {options.map((option) => (
-        <button
-          key={option.id}
-          type="button"
-          data-slot="toggle"
-          aria-pressed={value === option.id}
-          onClick={() => onChange(option.id)}
-          className={`min-h-9 min-w-0 rounded-xl px-1.5 py-0.5 font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${value === option.id ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-        >
-          <Fit max={14} min={10} lines={2}>
-            {option.label}
-          </Fit>
-        </button>
-      ))}
-    </div>
+      <FluidTabs.List aria-label={label} className="w-full overflow-hidden rounded-2xl bg-muted/70 p-1 shadow-none">
+        {options.map((option) => (
+          <FluidTabs.Tab key={option.id} className="min-h-9 px-1 py-1">
+            <FluidTabs.Label className="w-full whitespace-normal text-center leading-tight">
+              <Fit max={14} min={10} lines={2}>
+                {option.label}
+              </Fit>
+            </FluidTabs.Label>
+          </FluidTabs.Tab>
+        ))}
+      </FluidTabs.List>
+    </FluidTabs>
   );
 }
 
@@ -948,9 +978,11 @@ export function SearchingScreen({
           </div>
         </div>
       )}
-      <p role="status" aria-live="polite" className="line-clamp-2 shrink-0 font-pixel text-lg leading-snug">
-        {liveLine(live)}
-      </p>
+      <Bubble from="ffomo">
+        <p role="status" aria-live="polite" className="font-pixel text-base leading-snug">
+          {liveLine(live)}
+        </p>
+      </Bubble>
     </Shell>
   );
 }
@@ -962,16 +994,18 @@ export function SidesScreen({
   error,
   next,
   onLook,
+  onReveal,
   onNext,
 }: {
   saved: SavedDecision;
   error: string;
   next: string;
   onLook: () => void;
+  onReveal: () => void;
   onNext: () => void;
 }) {
   const result = saved.result;
-  const [view, setView] = useState<SideView>("a");
+  const [view, setView] = useState<SideView>(saved.fear === "fact" ? "wish" : "a");
 
   if (!result) {
     return (
@@ -987,12 +1021,16 @@ export function SidesScreen({
 
   const small = stakesOf(saved) === "small" && beatsOf(result).length > 0;
   const wish = wishOf(result);
+  const mode = saved.when === "already" ? "rescue" : "decide";
+  const taken = saved.when === "already" ? ("a" as const) : undefined;
+  const blocked = (saved.refreshes ?? 0) >= 2;
   const options: { id: SideView; label: string }[] = [
     { id: "a", label: result.pathA },
     { id: "b", label: result.pathB },
-    { id: "wish", label: `Wish (${wish.length})` },
-    ...(small ? [{ id: "later" as const, label: "Later" }] : []),
+    ...(wish.length === 0 ? [] : [{ id: "wish" as const, label: `Wish (${wish.length})` }]),
+    ...(!small ? [] : [{ id: "later" as const, label: "Later" }]),
   ];
+  const shown = options.some((option) => option.id === view) ? view : "a";
   const note = [
     saved.fork?.others?.length
       ? `Also on your list: ${saved.fork.others.join(", ")}.`
@@ -1007,43 +1045,101 @@ export function SidesScreen({
       step={STEP_LABEL.sides}
       action={<NextButton onClick={onNext}>{next}</NextButton>}
     >
-      <div className="flex shrink-0 items-center gap-3">
-        <div className="flex min-w-0 flex-1 flex-col">
-          <h1 className="font-pixel font-semibold">
-            <Fit max={20} min={14} lines={2}>
-              {saved.decision}
-            </Fit>
-          </h1>
-          <p className="truncate text-xs text-muted-foreground">
-            {whoLine(result) || aboutThem(saved)}
-          </p>
-        </div>
-        <Pet kind="owl" mood="look" size={40} />
-      </div>
-      {note ? (
-        <p className="line-clamp-2 shrink-0 text-sm font-medium">{note}</p>
-      ) : null}
-      {error ? (
-        <p className="enter-fade shrink-0 text-sm text-regret">{error}</p>
-      ) : null}
-      <Versus result={result} onLook={onLook} />
-      <Tabs
-        value={view}
-        options={options}
-        onChange={setView}
-        label="Show"
-      />
-      {view === "wish" ? (
-        <WishPager wish={wish} />
-      ) : view === "later" ? (
-        <BeatPager result={result} />
-      ) : (
-        <StoryPager
-          key={view}
-          stories={result.stories.filter((story) => story.path === view && story.kind !== "sketch")}
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain [scrollbar-width:none]">
+        <Bubble from="you">
+          <p className="line-clamp-3">{saved.decision}</p>
+        </Bubble>
+        {saved.kept ? (
+          <Bubble from="ffomo">
+            <p>
+              You picked {saved.kept === "a" ? result.pathA : result.pathB}. Same posts. They don’t reopen the other one.
+            </p>
+          </Bubble>
+        ) : null}
+        <Bubble from="ffomo" face pet="owl" mood="look">
+          <p>{whoLine(result) || aboutThem(saved)}</p>
+          {note ? <p className="mt-1 text-muted-foreground">{note}</p> : null}
+        </Bubble>
+        {error ? (
+          <Bubble from="ffomo">
+            <p className="text-regret">{error}</p>
+          </Bubble>
+        ) : null}
+        <Versus result={result} onLook={blocked ? undefined : onReveal} />
+        {blocked ? (
+          <Bubble from="ffomo">
+            <p>The record is unchanged.</p>
+          </Bubble>
+        ) : null}
+        {saved.kept ? null : <StopLooking saved={saved} />}
+        <Tabs
+          value={shown}
+          options={options}
+          onChange={setView}
+          label="Show"
         />
-      )}
+        <div className="flex min-h-64 shrink-0 flex-col">
+          {shown === "wish" ? (
+            <WishPager wish={wish} />
+          ) : shown === "later" ? (
+            <BeatPager result={result} />
+          ) : (
+            <PathStories
+              result={result}
+              path={shown === "b" ? "b" : "a"}
+              mode={mode}
+              taken={taken}
+              refreshes={saved.refreshes ?? 0}
+            />
+          )}
+        </div>
+      </div>
     </Shell>
+  );
+}
+
+function StopLooking({ saved }: { saved: SavedDecision }) {
+  const result = saved.result;
+  if (!result) return null;
+  const hits = fomoHits(result, saved.kept);
+  const wish = wishOf(result)[0];
+  const cost = saved.fear === "money" ? savedCost(saved) : "";
+  const empty = hits.length === 0 && !wish && !cost;
+  return (
+    <>
+      <Bubble from="ffomo">
+        <p className="font-pixel text-sm text-primary">What's missing</p>
+        <p className="mt-1 font-medium">{problemOf(saved.fear, saved.fearNote || saved.fearLine)}</p>
+        {empty ? <p className="mt-1">No post answered this yet.</p> : null}
+      </Bubble>
+      {wish ? (
+        <Bubble from="ffomo">
+          <p className="text-muted-foreground">Check this</p>
+          <p className="mt-1 text-pretty">{wish.text}</p>
+          <a href={wish.urls[0]} target="_blank" rel="noreferrer" className={`${LINK} mt-2 block`}>
+            The post
+          </a>
+        </Bubble>
+      ) : null}
+      {cost ? (
+        <Bubble from="ffomo">
+          <p className="text-muted-foreground">Your number</p>
+          <p className="mt-1 text-pretty">{cost}</p>
+        </Bubble>
+      ) : null}
+      {hits.map((hit) => (
+        <Bubble key={hit.path} from="ffomo">
+          <p className="font-medium">{hit.name}</p>
+          <p className="mt-1 text-muted-foreground">{hit.when}</p>
+          <p className="mt-1 text-pretty">{hit.text}</p>
+          {hit.url ? (
+            <a href={hit.url} target="_blank" rel="noreferrer" className={`${LINK} mt-2 block`}>
+              The post
+            </a>
+          ) : null}
+        </Bubble>
+      ))}
+    </>
   );
 }
 
@@ -1061,12 +1157,14 @@ export function CostScreen({
   onNext,
   onSkip,
   label,
+  named,
 }: {
   cost?: Cost;
   paths?: [string, string];
   onNext: (cost: Cost) => void;
   onSkip: () => void;
   label: string;
+  named?: string;
 }) {
   const [keep, setKeep] = useState(cost?.keep ?? "");
   const [leave, setLeave] = useState(cost?.leave ?? "");
@@ -1084,7 +1182,11 @@ export function CostScreen({
       }
     >
       <Title
-        sub="From today on, in your own numbers. What you already paid is gone on both paths, so it isn't counted."
+        sub={
+          named
+            ? `${named}. From today on, in your own numbers. What you already paid is gone.`
+            : "From today on, in your own numbers. What you already paid is gone on both paths, so it isn't counted."
+        }
         pet="duck"
         mood={line ? "hop" : "idle"}
       >
@@ -1109,12 +1211,9 @@ export function CostScreen({
         </label>
       ))}
       {line ? (
-        <p
-          key={line}
-          className="enter-fade rounded-2xl bg-card p-4 font-pixel text-xl"
-        >
-          {line}
-        </p>
+        <Bubble key={line} from="ffomo">
+          <p className="font-pixel text-lg">{line}</p>
+        </Bubble>
       ) : null}
       <Advice />
     </Shell>
@@ -1124,9 +1223,11 @@ export function CostScreen({
 export function MustScreen({
   result,
   musts,
+  marks,
   enough,
   open,
   onSave,
+  onMarks,
   onClear,
   onEnough,
   onNext,
@@ -1134,9 +1235,11 @@ export function MustScreen({
 }: {
   result: DecideResult;
   musts?: string[];
+  marks?: { a: boolean; b: boolean }[];
   enough?: string;
   open?: string[];
   onSave: (musts: string[]) => void;
+  onMarks: (marks: { a: boolean; b: boolean }[]) => void;
   onClear: () => void;
   onEnough: (check: { sentence: string; path: "a" | "b" | "both" | "neither"; open: string[] }) => void;
   onNext: () => void;
@@ -1144,6 +1247,9 @@ export function MustScreen({
 }) {
   const [three, setThree] = useState(
     musts?.length === 3 ? musts : ["", "", ""],
+  );
+  const [boxes, setBoxes] = useState(
+    () => marks ?? [{ a: false, b: false }, { a: false, b: false }, { a: false, b: false }],
   );
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
@@ -1232,20 +1338,48 @@ export function MustScreen({
               onChange={(event) => edit(index, event.target.value)}
               className={FIELD}
             />
+            <button
+              type="button"
+              aria-pressed={boxes[index]?.a}
+              className={`h-10 shrink-0 rounded-xl border-2 px-2 text-xs ${boxes[index]?.a ? "border-primary bg-primary/15" : "border-border"}`}
+              onClick={() => {
+                const next = boxes.map((box, i) => (i === index ? { ...box, a: !box.a } : box));
+                setBoxes(next);
+                onMarks(next);
+              }}
+            >
+              A
+            </button>
+            <button
+              type="button"
+              aria-pressed={boxes[index]?.b}
+              className={`h-10 shrink-0 rounded-xl border-2 px-2 text-xs ${boxes[index]?.b ? "border-primary bg-primary/15" : "border-border"}`}
+              onClick={() => {
+                const next = boxes.map((box, i) => (i === index ? { ...box, b: !box.b } : box));
+                setBoxes(next);
+                onMarks(next);
+              }}
+            >
+              B
+            </button>
           </label>
         ))}
       </div>
       {enough ? (
-        <div className="enter-fade flex min-h-0 flex-col gap-1.5 rounded-2xl border-2 border-primary/50 bg-primary/10 p-4">
-          <p className="line-clamp-3 text-lg font-semibold">{enough}</p>
+        <Bubble from="ffomo">
+          <p className="font-semibold">{enough}</p>
           {open?.length ? (
-            <p className="line-clamp-3 text-sm text-muted-foreground">
+            <p className="mt-1 text-muted-foreground">
               Nothing here answers: {open.join(" · ")}
             </p>
           ) : null}
-        </div>
+        </Bubble>
       ) : null}
-      {error ? <p className="text-sm text-regret">{error}</p> : null}
+      {error ? (
+        <Bubble from="ffomo">
+          <p className="text-regret">{error}</p>
+        </Bubble>
+      ) : null}
     </Shell>
   );
 }
@@ -1256,12 +1390,14 @@ export function FutureScreen({
   onShot,
   onNext,
   label,
+  named,
 }: {
   result: DecideResult;
   shot?: string;
   onShot?: (image: string) => void;
   onNext: () => void;
   label: string;
+  named?: string;
 }) {
   const [images, setImages] = useState<Record<string, string>>({});
   const [drawing, setDrawing] = useState(false);
@@ -1326,7 +1462,11 @@ export function FutureScreen({
       action={<NextButton onClick={onNext}>{label}</NextButton>}
     >
       <Title
-        sub="Only from the posts on screen. Not a prediction."
+        sub={
+          named
+            ? `${named}. Only from the posts on screen. Not a prediction.`
+            : "Only from the posts on screen. Not a prediction."
+        }
         pet="frog"
         mood={drawing ? "look" : "idle"}
       >
@@ -1503,7 +1643,6 @@ export function TryScreen({
   );
 }
 
-const CARD_PAGES: ("trade" | "you")[] = ["you", "trade"];
 
 // Names the disagreement. Never picks between them.
 function mustVsCrowd(saved: SavedDecision, result: DecideResult, kept: "a" | "b") {
@@ -1519,63 +1658,40 @@ function mustVsCrowd(saved: SavedDecision, result: DecideResult, kept: "a" | "b"
 }
 
 function unknownOf(saved: SavedDecision, result: DecideResult) {
-  const lines = [
-    ...(result.facts?.length ? [] : ["No spec fact checked."]),
-    ...(saved.open ?? []),
-    ...(result.unknown ?? []),
-  ];
-  return lines.length ? lines.slice(0, 3).join(" · ") : "Nothing we can name.";
-}
-
-function Row({
-  label,
-  href,
-  children,
-}: {
-  label: string;
-  href?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex w-full flex-col gap-0.5 border-t border-border pt-2">
-      <dt className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-        {label}
-        {href ? (
-          <a href={href} target="_blank" rel="noreferrer" className={`font-medium ${LINK}`}>
-            The post
-          </a>
-        ) : null}
-      </dt>
-      <dd className="line-clamp-3 text-sm text-pretty">{children}</dd>
-    </div>
-  );
+  const lines = [...(saved.open ?? []), ...(result.unknown ?? [])];
+  return lines.length ? lines.slice(0, 3).join(" · ") : "";
 }
 
 export function CardScreen({
   saved,
-  onCommit,
+  onPick,
   onLook,
-  onAlarm,
   onLeave,
-  onCloseDoor,
   onReasons,
+  onCheck,
+  onReopen,
 }: {
   saved: SavedDecision;
-  onCommit: (patch: Partial<SavedDecision>) => void;
+  onPick: (path: "a" | "b") => void;
   onLook: () => void;
-  onAlarm: () => void;
   onLeave: () => void;
-  onCloseDoor: () => void;
   onReasons: () => void;
+  onCheck: () => void;
+  onReopen: () => void;
 }) {
   const router = useRouter();
   const result = saved.result;
-  const [pick, setPick] = useState<"a" | "b" | null>(saved.kept ?? null);
+  const [pick, setPick] = useState<"a" | "b" | null>(() => {
+    if (saved.kept === "a" || saved.kept === "b") return saved.kept;
+    if (!saved.result) return null;
+    const rec = settle(settleFork(saved)).rec;
+    return rec.hold || !rec.path ? null : rec.path;
+  });
+  const [lookNote, setLookNote] = useState<string | null>(null);
   if (!result) return null;
   const care = sensitiveOf(saved.decision);
   const kept = saved.kept;
-  const now = readNow();
-  const locked = isLocked(saved.lockUntil, now);
+  const plan = settle(settleFork(saved));
 
   if (care) {
     return (
@@ -1592,216 +1708,124 @@ export function CardScreen({
         </p>
         <WishPager wish={wishOf(result)} />
         <p className="shrink-0 text-xs text-muted-foreground">
-          No coin and no closing the door on this one. Reconsider whenever you want.
+          Other people’s experiences. Not advice.
         </p>
       </Shell>
     );
   }
 
-  if (!kept) {
+  if (!kept && plan.rec.hold) {
     return (
-      <Shell
-        step={STEP_LABEL.card}
-        action={
-          <NextButton
-            disabled={!pick}
-            onClick={() =>
-              pick &&
-              onCommit({
-                kept: pick,
-                step: "card",
-                checks: saved.checks ?? scheduleChecks(readNow()),
-              })
-            }
-          >
-            This one
-          </NextButton>
-        }
-      >
-        <Title
-          sub={
-            saved.gut && showGut(saved.gut)
-              ? `${gutCopy(saved.gut)} Your call.`
-              : "Your call. Not ours."
-          }
-          pet="owl"
-          mood={pick ? "hop" : "look"}
-        >
-          Which one are you keeping?
-        </Title>
-        <div className="flex shrink-0 flex-col gap-2.5">
-          {(["a", "b"] as const).map((key) => {
-            const meter = result.meter[key];
-            return (
-              <Raised key={key} late={key === "b"}>
-                <Pick pressed={pick === key} onClick={() => setPick(key)}>
-                  <span className="flex items-center gap-3">
-                    <Pet kind={key === "a" ? "cat" : "duck"} size={40} mood={pick === key ? "hop" : "idle"} />
-                    <span className="flex min-w-0 flex-1 flex-col gap-1">
-                      <Fit max={18} min={13} lines={2} className="font-semibold">
-                        {key === "a" ? result.pathA : result.pathB}
-                      </Fit>
-                      {reported(meter) === 0 ? (
-                        <span className="text-sm text-muted-foreground">
-                          No posts about this yet.
-                        </span>
-                      ) : (
-                        <Counts meter={meter} />
-                      )}
-                    </span>
-                  </span>
-                </Pick>
-              </Raised>
-            );
-          })}
+      <Shell step={STEP_LABEL.card} action={<NextButton onClick={onCheck}>Check it</NextButton>}>
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto [scrollbar-width:none]">
+          <SettleRead saved={saved} pathA={result.pathA} pathB={result.pathB} />
         </div>
       </Shell>
     );
   }
 
-  const path = kept === "a" ? result.pathA : result.pathB;
-  const meter = result.meter[kept];
-  const nextCheck = saved.checks?.find((item) => !item.feeling);
-  const cost = savedCost(saved);
-  const topWish = wishOf(result)[0];
-  const mine = result.stories
-    .filter((story) => story.path === kept && story.kind !== "sketch" && story.url)
-    .toSorted((x, y) => y.strength - x.strength);
-  const up = mine.find((story) => story.feeling === "glad");
-  const down =
-    mine.find((story) => story.feeling === "regret") ??
-    mine.find((story) => story.feeling === "mixed");
+  if (!kept) {
+    const take =
+      pick != null && pick === plan.rec.path && plan.rec.next === "The coin is theater. Take it and stop.";
+    return (
+      <Shell
+        step={STEP_LABEL.card}
+        action={
+          pick ? (
+            <NextButton onClick={() => onPick(pick)}>
+              {take ? "Take it and stop" : "This one"}
+            </NextButton>
+          ) : (
+            <NextButton disabled onClick={() => {}}>
+              Pick one
+            </NextButton>
+          )
+        }
+      >
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto [scrollbar-width:none]">
+          <SettleRead saved={saved} pathA={result.pathA} pathB={result.pathB} />
+          <div className="flex shrink-0 flex-col gap-2.5">
+            {(["a", "b"] as const).map((key) => {
+              const meter = result.meter[key];
+              return (
+                <Raised key={key} late={key === "b"}>
+                  <Pick pressed={pick === key} onClick={() => setPick(key)}>
+                    <span className="flex items-center gap-3">
+                      <Pet kind={key === "a" ? "cat" : "duck"} size={40} mood={pick === key ? "hop" : "idle"} />
+                      <span className="flex min-w-0 flex-1 flex-col gap-1">
+                        <Fit max={18} min={13} lines={2} className="font-semibold">
+                          {key === "a" ? result.pathA : result.pathB}
+                        </Fit>
+                        {reported(meter) === 0 ? (
+                          <span className="text-sm text-muted-foreground">No posts about this yet.</span>
+                        ) : (
+                          <Counts meter={meter} />
+                        )}
+                      </span>
+                    </span>
+                  </Pick>
+                </Raised>
+              );
+            })}
+          </div>
+        </div>
+      </Shell>
+    );
+  }
+
+  const clash = mustVsCrowd(saved, result, kept);
+  const unknown = unknownOf(saved, result);
+  function again() {
+    if ((saved.refreshes ?? 0) >= 2) {
+      setLookNote("The record is unchanged.");
+      return;
+    }
+    const why = saved.reasons?.trim();
+    if (why && lookNote !== why) {
+      setLookNote(why);
+      return;
+    }
+    onLook();
+  }
 
   return (
     <Shell
       step={STEP_LABEL.card}
-      action={
-        saved.checks ? (
-          <Pair>
-            <QuietButton onClick={() => onCommit({ step: "checks" })}>Check-ins</QuietButton>
-            <NextButton onClick={onLeave}>I’m done</NextButton>
-          </Pair>
-        ) : (
-          <NextButton onClick={onLeave}>I’m done</NextButton>
-        )
-      }
+      action={<NextButton onClick={onLeave}>I’m done</NextButton>}
     >
-      <Raised className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-3xl border-2 border-primary/40 bg-card p-4">
-        <div className="flex shrink-0 items-start gap-3">
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <p className="truncate text-xs text-muted-foreground">
-              You chose · {saved.decision}
-            </p>
-            <h1 className="font-pixel leading-[1.1] font-semibold text-balance">
-              <Fit max={26} min={17} lines={2}>
-                {path}
-              </Fit>
-            </h1>
-          </div>
-          {saved.gut?.still && !saved.gut.ignored ? (
-            <img
-              src={saved.gut.still}
-              alt="Your face when it landed"
-              className="size-11 shrink-0 rounded-2xl object-cover"
-            />
-          ) : (
-            <Pet kind="pup" mood="cheer" size={44} />
-          )}
-        </div>
-        <Pager
-          items={CARD_PAGES}
-          label="The card"
-          render={(page) =>
-            page === "trade" ? (
-              <dl className="flex h-full flex-col flex-wrap content-start gap-x-8 gap-y-2 overflow-hidden">
-                <Row label="What these posters reported">
-                  <span className="flex flex-wrap items-baseline gap-x-2">
-                    <Counts meter={meter} />
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {reported(meter) === 0
-                        ? "No posts about this yet."
-                        : meterReady(meter)
-                          ? `strength ${meter.strength}`
-                          : "Not enough to add up."}
-                    </span>
-                  </span>
-                </Row>
-                <Row label="An upside someone reported" href={up?.url}>
-                  {up ? up.text : "No one on this path posted one."}
-                </Row>
-                <Row label="A downside someone reported" href={down?.url}>
-                  {down ? down.text : "No one on this path posted one."}
-                </Row>
-                {saved.gut && showGut(saved.gut) ? (
-                  <Row label="Gut check">
-                    {gutCopy(saved.gut)} At {saved.gut.path === "a" ? result.pathA : result.pathB}.{" "}
-                    {pulseLine(saved.gut.pulse, result.pathA, result.pathB)}
-                  </Row>
-                ) : null}
-                {cost ? <Row label="Your numbers · not advice">{cost}</Row> : null}
-              </dl>
-            ) : (
-              <dl className="flex h-full flex-col flex-wrap content-start gap-x-8 gap-y-2 overflow-hidden">
-                <Row label="Next step">
-                  {nextCheck ? `Check in on ${day(nextCheck.due)}.` : "Go do it now."}{" "}
-                  Reconsider if a material fact changes.
-                </Row>
-                {saved.reasons ? (
-                  <Row label="Your reasons">{`“${saved.reasons}”`}</Row>
-                ) : (
-                  <Row label="Your reasons">This shows first if you come back worried.</Row>
-                )}
-                {saved.unlockNote ? (
-                  <Row label="What changed">{saved.unlockNote}</Row>
-                ) : null}
-                {topWish ? (
-                  <Row label="What they wish they’d known" href={topWish.urls[0]}>
-                    {topWish.text.charAt(0).toUpperCase() + topWish.text.slice(1)}
-                  </Row>
-                ) : null}
-                {saved.enough ? (
-                  <Row label="Must-haves">
-                    {saved.enough} {mustVsCrowd(saved, result, kept)}
-                  </Row>
-                ) : null}
-                <Row label="Still unknown">{unknownOf(saved, result)}</Row>
-              </dl>
-            )
-          }
-        />
-      </Raised>
-      <div className="grid shrink-0 grid-cols-4 gap-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto [scrollbar-width:none]">
+        <SettleRead saved={saved} pathA={result.pathA} pathB={result.pathB} />
+        {clash ? (
+          <Bubble from="ffomo">
+            <p className="text-pretty">{clash}</p>
+          </Bubble>
+        ) : null}
+        {unknown ? <p className="px-1 text-xs text-pretty text-muted-foreground">Still unknown. {unknown}</p> : null}
+        {!saved.reasons ? (
+          <Bubble from="ffomo">
+            <p>Write one sentence. That’s what shows up if the other one comes back.</p>
+          </Bubble>
+        ) : null}
+        {lookNote === "The record is unchanged." ? (
+          <Bubble from="ffomo">
+            <p>The record is unchanged.</p>
+          </Bubble>
+        ) : null}
+      </div>
+      <div className="grid shrink-0 grid-cols-3 gap-2">
         <button
           type="button"
           data-slot="button"
           className={SMALL}
-          onClick={() => (locked ? onAlarm() : onCommit({ kept: undefined }))}
+          onClick={onReopen}
         >
-          Switch
+          Other one
         </button>
-        <button
-          type="button"
-          data-slot="button"
-          className={SMALL}
-          onClick={onReasons}
-        >
+        <button type="button" data-slot="button" className={SMALL} onClick={onReasons}>
           {saved.reasons ? "Why" : "Write why"}
         </button>
-        <button
-          type="button"
-          data-slot="button"
-          className={SMALL}
-          onClick={() => (locked ? onAlarm() : onCloseDoor())}
-        >
-          {locked ? "Closed" : "Close 30d"}
-        </button>
-        <button
-          type="button"
-          data-slot="button"
-          className={SMALL}
-          onClick={onLook}
-        >
-          Look again
+        <button type="button" data-slot="button" className={SMALL} onClick={again}>
+          {(saved.refreshes ?? 0) >= 2 ? "Unchanged" : lookNote && lookNote !== "The record is unchanged." ? "Look anyway" : "Look again"}
         </button>
       </div>
     </Shell>
@@ -1810,29 +1834,43 @@ export function CardScreen({
 
 export function ReasonsScreen({
   reasons,
+  intent,
+  note,
   onSave,
 }: {
   reasons?: string;
+  intent: "why" | "changed" | "edit";
+  note?: string;
   onSave: (reasons: string) => void;
 }) {
   const [text, setText] = useState(reasons ?? "");
   const trimmed = text.trim();
+  const ready = trimmed.length >= 12;
+  const changed = intent === "changed";
   return (
     <Shell
-      step={STEP_LABEL.reasons}
+      step={changed ? "The other one" : STEP_LABEL.reasons}
       action={
-        <NextButton onClick={() => onSave(trimmed)}>
-          {trimmed ? "Save" : "Skip"}
+        <NextButton disabled={!ready} onClick={() => onSave(trimmed)}>
+          {changed ? "Open it" : intent === "edit" ? "Save" : "This one"}
         </NextButton>
       }
     >
       <Title
-        sub="In your words. If you come back worried, this shows first."
+        sub={
+          changed
+            ? "One sentence, or it stays closed."
+            : "One sentence. Then the other one stays closed."
+        }
         pet="cat"
-        mood={trimmed ? "look" : "idle"}
+        mood={ready ? "look" : "idle"}
       >
-        Why this one?
+        {changed ? "What changed?" : "Why this one?"}
       </Title>
+      {note ? <p className="shrink-0 text-sm text-pretty text-muted-foreground">{note}</p> : null}
+      {trimmed.length > 0 && !ready ? (
+        <p className="shrink-0 text-sm text-muted-foreground">A bit longer.</p>
+      ) : null}
       <label className="flex min-h-0 flex-1 flex-col">
         <span className="sr-only">Your reasons</span>
         <Textarea
@@ -1846,269 +1884,3 @@ export function ReasonsScreen({
   );
 }
 
-const DUE_LINE: Record<Check["label"], string> = {
-  "1 week": "A week later. How is it?",
-  "1 month": "A month later. How is it?",
-  "6 months": "Six months later. How is it?",
-};
-
-function feelWord(feeling: Check["feeling"]) {
-  return feeling === "glad"
-    ? "Glad"
-    : feeling === "regret"
-      ? "Regret"
-      : feeling === "same"
-        ? "Same"
-        : "Not due yet";
-}
-
-function feelInk(feeling: Check["feeling"]) {
-  return feeling === "glad"
-    ? "bg-glad"
-    : feeling === "regret"
-      ? "bg-regret"
-      : feeling === "same"
-        ? "bg-mixed"
-        : "bg-muted";
-}
-
-function CurveRow({ checks }: { checks: Check[] }) {
-  return (
-    <ol className="grid shrink-0 grid-cols-3 gap-2">
-      {checks.map((item) => (
-        <li key={item.label} className="flex flex-col gap-1">
-          <span className={`h-2 rounded-[2px] ${feelInk(item.feeling)}`} />
-          <span className="text-xs text-muted-foreground">
-            {item.label} · {day(item.due)}
-          </span>
-          <span className="text-sm font-medium">{feelWord(item.feeling)}</span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-export function ChecksScreen({
-  checks,
-  due,
-  path,
-  onSave,
-  onDone,
-  onLater,
-}: {
-  checks: Check[];
-  due: Check | null;
-  path?: string;
-  onSave: (
-    label: Check["label"],
-    feeling: "glad" | "regret" | "same",
-    note: string,
-    share: boolean,
-  ) => void;
-  onDone: () => void;
-  onLater?: () => void;
-}) {
-  const [feeling, setFeeling] = useState<"glad" | "regret" | "same" | null>(
-    null,
-  );
-  const [note, setNote] = useState("");
-  const [share, setShare] = useState(false);
-
-  if (due) {
-    return (
-      <Shell
-        step={STEP_LABEL.checks}
-        action={
-          onLater ? (
-            <Pair>
-              <QuietButton onClick={onLater}>Not now</QuietButton>
-              <NextButton
-                disabled={!feeling}
-                onClick={() => feeling && onSave(due.label, feeling, note.trim(), share)}
-              >
-                Save
-              </NextButton>
-            </Pair>
-          ) : (
-            <NextButton
-              disabled={!feeling}
-              onClick={() => feeling && onSave(due.label, feeling, note.trim(), share)}
-            >
-              Save
-            </NextButton>
-          )
-        }
-      >
-        <Title
-          sub={path ? `You kept: ${path}` : undefined}
-          pet="frog"
-          mood={
-            feeling === "glad" ? "cheer" : feeling === "regret" ? "sad" : "idle"
-          }
-        >
-          {DUE_LINE[due.label]}
-        </Title>
-        <div className="grid shrink-0 grid-cols-3 gap-2.5">
-          <Pick
-            tone="glad"
-            pressed={feeling === "glad"}
-            onClick={() => setFeeling("glad")}
-            className="min-h-14 px-2 text-center"
-          >
-            <span className="font-pixel text-lg text-glad">Glad</span>
-          </Pick>
-          <Pick pressed={feeling === "same"} onClick={() => setFeeling("same")}
-            className="min-h-14 px-2 text-center">
-            <span className="font-pixel text-lg">Same</span>
-          </Pick>
-          <Pick
-            tone="regret"
-            pressed={feeling === "regret"}
-            onClick={() => setFeeling("regret")}
-            className="min-h-14 px-2 text-center"
-          >
-            <span className="font-pixel text-lg text-regret">Regret</span>
-          </Pick>
-        </div>
-        <label className="flex shrink-0 flex-col gap-1.5">
-          <span className="text-sm text-muted-foreground">
-            One sentence, if you want
-          </span>
-          <Textarea
-            value={note}
-            maxLength={280}
-            onChange={(event) => setNote(event.target.value)}
-            className="h-24 rounded-2xl p-4 text-base md:text-base"
-          />
-        </label>
-        <Pick pressed={share} onClick={() => setShare((on) => !on)} className="h-12">
-          {share ? "Adds this for the next person" : "Just for you"}
-        </Pick>
-      </Shell>
-    );
-  }
-
-  return (
-    <Shell
-      step={STEP_LABEL.checks}
-      action={<NextButton onClick={onDone}>Done</NextButton>}
-    >
-      <Title sub="A week, a month, and six months." pet="frog">
-        Check back
-      </Title>
-      <ol className="flex shrink-0 flex-col gap-2.5">
-        {checks.map((item, index) => (
-          <li
-            key={item.label}
-            className={`pop-in flex items-start gap-3 rounded-2xl bg-card p-3.5`}
-            style={{ animationDelay: `${index * 70}ms` }}
-          >
-            <span
-              className={`mt-1 size-3 shrink-0 rounded-[2px] ${feelInk(item.feeling)}`}
-            />
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="font-medium">
-                {item.label}
-                <span className="font-normal text-muted-foreground">
-                  {" "}
-                  · {day(item.due)}
-                </span>
-              </span>
-              <span className="text-sm text-muted-foreground">
-                {feelWord(item.feeling)}
-              </span>
-              {item.note ? (
-                <span className="line-clamp-2 text-sm">{item.note}</span>
-              ) : null}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </Shell>
-  );
-}
-
-export function LockScreen({
-  saved,
-  onOpen,
-  onRead,
-}: {
-  saved: SavedDecision;
-  onOpen: (note: string) => void;
-  onRead: () => void;
-}) {
-  const [changed, setChanged] = useState("");
-  const result = saved.result;
-  const path =
-    saved.kept === "a"
-      ? result?.pathA
-      : saved.kept === "b"
-        ? result?.pathB
-        : saved.decision;
-  const line = savedCost(saved);
-  return (
-    <Shell
-      step={STEP_LABEL.lock}
-      action={
-        <Pair>
-          <QuietButton onClick={onRead}>The card</QuietButton>
-          <NextButton disabled={!changed.trim()} onClick={() => onOpen(changed.trim())}>
-            Open it
-          </NextButton>
-        </Pair>
-      }
-    >
-      <Title
-        sub={
-          saved.lockUntil
-            ? `Until ${day(saved.lockUntil)}. Open it whenever you want. We are not watching for news.`
-            : undefined
-        }
-        pet="cat"
-        mood="sleep"
-      >
-        Door closed.
-      </Title>
-      <div className="flex shrink-0 flex-col gap-2 rounded-2xl bg-card p-4">
-        <p className="line-clamp-2 font-pixel text-xl">{path}</p>
-        {saved.reasons ? (
-          <blockquote className="line-clamp-3 text-sm text-pretty text-muted-foreground">
-            “{saved.reasons}”
-          </blockquote>
-        ) : null}
-      </div>
-      {saved.checks?.length ? <CurveRow checks={saved.checks} /> : null}
-      {line ? (
-        <div className="flex shrink-0 flex-col gap-0.5">
-          <p className="line-clamp-2 text-sm font-semibold">{line}</p>
-          <Advice />
-        </div>
-      ) : null}
-      <div className="flex shrink-0 flex-col gap-2">
-        <div className="flex gap-1.5">
-          {["A new fact", "Something changed", "Just looking"].map((chip) => (
-            <button
-              key={chip}
-              type="button"
-              data-slot="button"
-              aria-pressed={changed === chip}
-              className={`h-9 rounded-xl border-2 px-2.5 text-xs whitespace-nowrap ${changed === chip ? "border-primary bg-primary/15" : "border-border"}`}
-              onClick={() => (chip === "Just looking" ? onRead() : setChanged(chip))}
-            >
-              {chip}
-            </button>
-          ))}
-        </div>
-        <Input
-          value={changed}
-          maxLength={280}
-          autoComplete="off"
-          aria-label="What changed?"
-          placeholder="What changed? One line opens it."
-          onChange={(event) => setChanged(event.target.value)}
-          className={FIELD}
-        />
-      </div>
-    </Shell>
-  );
-}

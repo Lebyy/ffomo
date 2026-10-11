@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import type { Check, Cost, Fear, GutRecord, Step } from "@/lib/flow";
 import type { DecideResult, Fork } from "@/lib/schema";
+import type { PathId } from "@/lib/settle";
 
 const KEY = "ffomo";
 
@@ -17,17 +18,32 @@ export type SavedDecision = {
   voice?: boolean;
   answers?: Answer[];
   size?: "small" | "big";
+  undo?: "easy" | "hard";
+  urgent?: boolean;
   thing?: boolean;
   shot?: string;
   step?: Step;
   fear?: Fear;
   fearLine?: string;
+  fearNote?: string;
   cost?: Cost;
   musts?: string[];
+  mustMarks?: { a: boolean; b: boolean }[];
+  binding?: { on: boolean; checked: boolean; survives?: PathId };
+  resolving?: { applies: boolean; checked: boolean; inHand: boolean };
+  paid?: number;
+  recoverable?: number;
+  extra?: number;
+  opens?: number;
+  refreshes?: number;
+  challenges?: number;
+  cardAt?: number;
   enough?: string;
   enoughPath?: "a" | "b" | "both" | "neither";
   open?: string[];
   kept?: "a" | "b";
+  closing?: "a" | "b";
+  opening?: boolean;
   gut?: GutRecord;
   reasons?: string;
   lockUntil?: number;

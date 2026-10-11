@@ -4,6 +4,7 @@ import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { createContext, use } from "react";
 import { Account } from "@/components/account";
+import AnimatedGradientText from "@/components/animata/text/animated-gradient-text";
 
 export const Progress = createContext<number | null>(null);
 
@@ -32,7 +33,10 @@ export function Shell({
   const back = onBack ? { label: "Back", go: onBack } : handed;
   const filled = progress == null ? 0 : Math.round(progress * BLOCKS);
   return (
-    <div className="mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden px-5 pt-[env(safe-area-inset-top)]">
+    <div
+      data-room={step ?? "Home"}
+      className="mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden px-5 pt-[env(safe-area-inset-top)]"
+    >
       <header
         className="flex shrink-0 flex-col gap-2.5 pt-3 pb-3"
         style={{ viewTransitionName: "ffomo-header" }}
@@ -51,14 +55,16 @@ export function Shell({
             ) : null}
             <Link
               href="/"
-              className="rounded-sm font-pixel text-xl font-bold tracking-wide outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              Ffomo
+              <AnimatedGradientText className="font-pixel text-xl font-bold tracking-wide">
+                Ffomo
+              </AnimatedGradientText>
             </Link>
           </div>
           <div className="flex items-center gap-2">
             {step ? (
-              <p className="rounded-md bg-muted px-2 py-0.5 font-pixel text-sm text-muted-foreground">
+              <p className="rounded-md bg-primary/15 px-2 py-0.5 font-pixel text-sm text-primary">
                 {step}
               </p>
             ) : null}
