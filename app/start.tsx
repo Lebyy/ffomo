@@ -8,6 +8,7 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Shell } from "@/components/shell";
+import { InstallHint } from "@/components/pwa";
 import { Fit } from "@/components/fit";
 import { Pager } from "@/components/pager";
 import { Pet } from "@/components/pet";
@@ -37,7 +38,6 @@ export default function Start() {
       decision: text,
       when,
       shot: shot || undefined,
-      thing: shot ? true : undefined,
       voice: voice || undefined,
     });
     router.push(`/d/${id}`);
@@ -87,6 +87,7 @@ export default function Start() {
             How it went for people who already chose, and what they wish
             they’d known. Then you decide.
           </p>
+          <InstallHint />
         </div>
         <form
           id="start"

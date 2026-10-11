@@ -60,7 +60,7 @@ async function peekPage(url: string) {
       ...(title ? { title } : {}),
     };
   } catch {
-    return { url: original };
+    return { url: "" };
   }
 }
 

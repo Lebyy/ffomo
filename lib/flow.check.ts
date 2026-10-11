@@ -157,6 +157,10 @@ assert.deepEqual(
   ["facts", "sides", "must", "card"],
 );
 
+assert.deepEqual(
+  [...PLAYS],
+  ["cards", "doors", "point", "pets", "hold", "scratch"],
+);
 assert.equal(pickPlay("abc", []), pickPlay("abc", []));
 const seen = ["cards", "doors", "point"];
 assert.equal(seen.includes(pickPlay("ffomo-1", seen)), false);

@@ -41,7 +41,7 @@ export const FELT_LINE: Record<Felt, string> = {
   unrelated: "Something else was on my mind.",
 };
 
-export const PLAYS = ["cards", "doors", "point", "pets"] as const;
+export const PLAYS = ["cards", "doors", "point", "pets", "hold", "scratch"] as const;
 export type Ritual = (typeof PLAYS)[number];
 
 export type Lean = { path: "a" | "b"; why: string } | null;
@@ -76,7 +76,32 @@ export function gutRead(
   return { path: fallback, line: read.a ? "You smiled." : "No smile." };
 }
 
-// Skips the plays this phone saw last, so a new decision gets a new one.
+const PLAY_KEY = "ffomo-plays";
+
+export function readPlays(): Ritual[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(PLAY_KEY) || "[]") as unknown;
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((item): item is Ritual => (PLAYS as readonly string[]).includes(item))
+      .slice(-3);
+  } catch {
+    return [];
+  }
+}
+
+export function rememberPlay(play: Ritual) {
+  if (typeof window === "undefined") return;
+  try {
+    const next = [...readPlays().filter((item) => item !== play), play].slice(-3);
+    localStorage.setItem(PLAY_KEY, JSON.stringify(next));
+  } catch {
+    /* the next visit can repeat a play */
+  }
+}
+
+// Skips the last three this phone saw, so the next decision gets a different one.
 export function pickPlay(id: string, recent: readonly string[]): Ritual {
   const fresh = PLAYS.filter((play) => !recent.includes(play));
   const pool = fresh.length > 0 ? fresh : PLAYS;

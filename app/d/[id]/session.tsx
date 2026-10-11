@@ -11,6 +11,7 @@ import {
   isLocked,
   knownLean,
   nextLabel,
+  LOCK_MS,
   nextStep,
   type Lean,
   prevStep,
@@ -168,7 +169,7 @@ function infoOf(saved: SavedDecision): ForkInfo {
     when: saved.when,
     fear: saved.fear,
     size: saved.size,
-    thing: saved.thing || Boolean(saved.shot),
+    thing: saved.thing,
     photo: Boolean(saved.shot),
     facts: saved.result?.facts?.length ?? 0,
   };
@@ -185,6 +186,8 @@ export function Session({ id }: { id: string }) {
     return Boolean(current && !current.result && current.asked);
   });
   const [passedLock, setPassedLock] = useState(false);
+  const [passedDue, setPassedDue] = useState(false);
+  const [afterReasons, setAfterReasons] = useState<"card" | "home" | "lock">("card");
   const [live, setLive] = useState<LiveSearch>(NO_LIVE);
   const [wordLean, setWordLean] = useState<Lean>(null);
   const liveRef = useRef(NO_LIVE);
@@ -257,6 +260,7 @@ export function Session({ id }: { id: string }) {
   function cancelLook() {
     looking.get(id)?.abort();
     setPending(false);
+    if (readDecision(id)?.result) return;
     commit({ asked: undefined });
   }
 
@@ -270,6 +274,12 @@ export function Session({ id }: { id: string }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    const step = saved?.step;
+    if (step === "card" || step === "reasons" || step === "lock" || step === "checks") return;
+    void import("@/lib/feel").then((mod) => void mod.loadFeel());
+  }, [saved?.step]);
 
   useEffect(() => {
     const step = saved?.step;
@@ -328,10 +338,10 @@ export function Session({ id }: { id: string }) {
       ? saved.asked
         ? "sides"
         : "ask"
-      : due
-        ? "checks"
-        : locked && !passedLock
-          ? "lock"
+      : locked && !passedLock
+        ? "lock"
+        : due && !passedDue
+          ? "checks"
           : (saved.step ?? stepsFor(info)[0]);
   const progress =
     screen === "ask"
@@ -353,7 +363,20 @@ export function Session({ id }: { id: string }) {
       router.push("/");
       return;
     }
-    if (screen === "lock") return;
+    if (screen === "lock") {
+      setPassedLock(true);
+      return;
+    }
+    if (screen === "checks" && due) {
+      setPassedDue(true);
+      commit({ step: "card" });
+      return;
+    }
+    if (screen === "reasons") {
+      setAfterReasons("card");
+      commit({ step: "card" });
+      return;
+    }
     if (screen === "card") {
       router.push("/");
       return;
@@ -379,7 +402,7 @@ export function Session({ id }: { id: string }) {
             commit({
               fork,
               size: fork.size,
-              thing: fork.thing || Boolean(saved.shot) || undefined,
+              thing: fork.thing || undefined,
               paired: paired ? true : undefined,
             })
           }
@@ -407,6 +430,7 @@ export function Session({ id }: { id: string }) {
     if (screen === "gut" && result) {
       return (
         <GutCheck
+          id={saved.id}
           pathA={result.pathA}
           pathB={result.pathB}
           decision={saved.decision}
@@ -485,14 +509,38 @@ export function Session({ id }: { id: string }) {
           saved={saved}
           onCommit={commit}
           onLook={() => {
-            if (isLocked(saved.lockUntil, Date.now())) {
+            if (isLocked(saved.lockUntil, readNow())) {
               setPassedLock(false);
               return;
             }
-            commit({ step: undefined });
-            void look({ ...saved, step: undefined });
+            void look(saved);
           }}
           onAlarm={() => setPassedLock(false)}
+          onLeave={() => {
+            if (!saved.reasons) {
+              setAfterReasons("home");
+              commit({ step: "reasons" });
+              return;
+            }
+            router.push("/");
+          }}
+          onCloseDoor={() => {
+            if (isLocked(saved.lockUntil, readNow())) {
+              setPassedLock(false);
+              return;
+            }
+            if (!saved.reasons) {
+              setAfterReasons("lock");
+              commit({ step: "reasons" });
+              return;
+            }
+            commit({ lockUntil: readNow() + LOCK_MS });
+            setPassedLock(true);
+          }}
+          onReasons={() => {
+            setAfterReasons("card");
+            commit({ step: "reasons" });
+          }}
         />
       );
     }
@@ -501,9 +549,20 @@ export function Session({ id }: { id: string }) {
       return (
         <ReasonsScreen
           reasons={saved.reasons}
-          onSave={(reasons) =>
-            commit({ reasons: reasons || undefined, step: "card" })
-          }
+          onSave={(reasons) => {
+            const next = afterReasons;
+            setAfterReasons("card");
+            const patch: Partial<SavedDecision> = {
+              reasons: reasons || undefined,
+              step: "card",
+            };
+            if (next === "lock") {
+              patch.lockUntil = readNow() + LOCK_MS;
+              setPassedLock(true);
+            }
+            commit(patch);
+            if (next === "home") router.push("/");
+          }}
         />
       );
     }
@@ -519,8 +578,12 @@ export function Session({ id }: { id: string }) {
         <ChecksScreen
           key={due?.label ?? "list"}
           checks={saved.checks ?? []}
-          due={due}
+          due={passedDue ? null : due}
           path={path}
+          onLater={() => {
+            setPassedDue(true);
+            commit({ step: "card" });
+          }}
           onSave={(checkLabel, feeling, note, share) => {
             const checks = (saved.checks ?? []).map((item) =>
               item.label === checkLabel

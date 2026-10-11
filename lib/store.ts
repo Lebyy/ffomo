@@ -32,6 +32,7 @@ export type SavedDecision = {
   lockUntil?: number;
   unlockNote?: string;
   checks?: Check[];
+  at?: number;
 };
 
 function readAll(): SavedDecision[] {
@@ -90,10 +91,11 @@ export function readDecision(id: string) {
 
 export function saveDecision(item: SavedDecision) {
   try {
-    const items = readAll().filter((saved) => saved.id !== item.id);
-    items.unshift(item);
+    const next = { ...item, at: Date.now() };
+    const items = readAll().filter((saved) => saved.id !== next.id);
+    items.unshift(next);
     writeAll(items);
-    push(item);
+    push(next);
     return true;
   } catch {
     return false;
@@ -123,7 +125,7 @@ function push(item: SavedDecision) {
   void fetch("/api/decisions", {
     method: "PUT",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ at: Date.now(), item: forServer(item) }),
+    body: JSON.stringify({ at: item.at ?? Date.now(), item: forServer(item) }),
   }).catch(() => {});
 }
 
@@ -154,7 +156,14 @@ export async function syncDecisions(userId: string) {
     const local = owner && owner !== userId ? [] : readAll();
     const byId = new Map(local.map((item) => [item.id, item]));
     const onServer = new Set(items.map((item) => item.id));
-    const merged = items.map((item) => withLocal(item, byId.get(item.id)));
+    const merged = items.map((item) => {
+      const localItem = byId.get(item.id);
+      if (localItem && (localItem.at ?? 0) > (item.at ?? 0)) {
+        push(localItem);
+        return localItem;
+      }
+      return withLocal(item, localItem);
+    });
     for (const item of local) {
       if (onServer.has(item.id)) continue;
       merged.push(item);

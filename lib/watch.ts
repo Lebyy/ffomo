@@ -8,6 +8,7 @@ const samples: Sample[] = [];
 let saw = false;
 let live = false;
 let feed: MediaStream | null = null;
+let source: "feel" | "shape" | null = null;
 
 export function watchLive() {
   return live;
@@ -27,7 +28,16 @@ export function getStream() {
   return feed;
 }
 
+export function clearWatch() {
+  samples.length = 0;
+  saw = false;
+  source = null;
+}
+
 export function pushScore(score: FaceScore, at = performance.now()) {
+  const kind = score.kind ?? "shape";
+  if (source && kind !== source) return;
+  source = kind;
   saw = true;
   samples.push({ ...score, at });
   // Keep enough for a long reading window. ~20 fps over ~15s is 300 frames.
@@ -45,7 +55,12 @@ function mean(rows: Sample[]): FaceScore | null {
     confused += row.confused;
   }
   const n = rows.length;
-  return { smile: smile / n, frown: frown / n, confused: confused / n };
+  return {
+    smile: smile / n,
+    frown: frown / n,
+    confused: confused / n,
+    kind: rows[0].kind ?? "shape",
+  };
 }
 
 // Baseline is the resting face just before it landed. The reaction is every

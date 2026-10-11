@@ -18,10 +18,23 @@ function lineFor(saved: SavedDecision, screen: Screen, live: LiveSearch) {
     return "Looking for people who already chose.";
   }
   if (screen === "facts") return "Check the spec facts first.";
-  if (screen === "sides" && saved.result)
-    return `${saved.result.stories.length} posts. ${a} and ${b} both stay up.`;
-  if (screen === "gut") return "A path will land. Then two seconds on your face.";
-  if (screen === "card") return "Which one are you keeping?";
+  if (screen === "sides" && saved.result) {
+    const n = saved.result.stories.filter(
+      (story) => story.kind === "check-in" || (story.kind !== "sketch" && story.url),
+    ).length;
+    return `${n} posts. ${a} and ${b} both stay up.`;
+  }
+  if (screen === "gut") return "Something lands on a path. Then it reads your face on this phone.";
+  if (screen === "card") {
+    if (!saved.kept) return "Which one are you keeping?";
+    const path = saved.kept === "a" ? a : b;
+    return saved.reasons
+      ? `You kept ${path}.`
+      : `You kept ${path}. Write why before you close the door.`;
+  }
+  if (screen === "reasons") return "Why this one? If you come back worried, this shows first.";
+  if (screen === "lock") return "Door closed. Your reasons, your curve, and your numbers are here.";
+  if (screen === "checks") return "How is it now?";
   if (screen === "tryon") return "A photo of the thing, or of you. Same shot, both options.";
   if (screen === "future") return "Only from the posts on screen.";
   return "";

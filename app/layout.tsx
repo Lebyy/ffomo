@@ -1,5 +1,6 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import { DecisionSync } from "@/components/decision-sync";
+import { RegisterApp } from "@/components/pwa";
 import { shadcn } from "@clerk/ui/themes";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Pixelify_Sans } from "next/font/google";
@@ -59,7 +60,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
   themeColor: "#0b0f1a",
   colorScheme: "dark",
-  interactiveWidget: "overlays-content",
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -80,6 +81,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </div>
         <div className="phone-app flex h-dvh flex-col overflow-hidden">
           <ClerkProvider appearance={clerkAppearance}>
+            <RegisterApp />
             <DecisionSync />
             {children}
           </ClerkProvider>

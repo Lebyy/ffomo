@@ -11,7 +11,6 @@ import { Fit } from "@/components/fit";
 import { Pet, type Mood } from "@/components/pet";
 import type { PetKind } from "@/lib/pets";
 import {
-  LOCK_MS,
   STEP_LABEL,
   costLine,
   disagree,
@@ -577,9 +576,12 @@ function hostOf(url: string) {
 
 // Says where the posts came from and what was left out.
 function whoLine(result: DecideResult) {
+  const posts = result.stories.filter(
+    (story) => story.kind === "check-in" || (story.kind !== "sketch" && story.url),
+  );
   const hosts = [
     ...new Set(
-      result.stories.flatMap((story) => {
+      posts.flatMap((story) => {
         const host = story.url ? hostOf(story.url) : story.kind === "check-in" ? "check-ins" : "";
         return host ? [host] : [];
       }),
@@ -591,7 +593,7 @@ function whoLine(result: DecideResult) {
       : hosts.length <= 2
         ? hosts.join(", ")
         : `${hosts.slice(0, 2).join(", ")} +${hosts.length - 2}`;
-  const n = result.stories.length;
+  const n = posts.length;
   const left = [
     result.skipped ? `${result.skipped} advice posts skipped` : "",
     result.dropped ? `${result.dropped} dead links dropped` : "",
@@ -701,8 +703,16 @@ function BeatPager({
   drawing?: boolean;
 }) {
   const beats = beatsOf(result);
-  if (beats.length === 0)
-    return <Empty pet="frog">No posts at a week, a year, or five years.</Empty>;
+  if (beats.length === 0) {
+    const posts = result.stories.some((story) => story.kind !== "sketch" && story.url);
+    return (
+      <Empty pet="frog">
+        {posts
+          ? "No matching point in time on both paths."
+          : "No posts about this yet."}
+      </Empty>
+    );
+  }
   return (
     <Pager
       items={beats}
@@ -1030,7 +1040,7 @@ export function SidesScreen({
       ) : (
         <StoryPager
           key={view}
-          stories={result.stories.filter((story) => story.path === view)}
+          stories={result.stories.filter((story) => story.path === view && story.kind !== "sketch")}
         />
       )}
     </Shell>
@@ -1283,8 +1293,19 @@ export function FutureScreen({
           }
         }),
       );
+      const got = new Map<string, string>();
+      for (const row of drawn) if (row) got.set(row[0], row[1]);
       const next = { ...images };
-      for (const row of drawn) if (row) next[row[0]] = row[1];
+      for (const when of WHEN_ORDER) {
+        const pair = beats.filter((beat) => beat.when === when);
+        if (pair.length < 2) continue;
+        const keys = pair.map((beat) => `${beat.when}-${beat.url}`);
+        if (!keys.every((key) => got.has(key))) continue;
+        for (const key of keys) {
+          const src = got.get(key);
+          if (src) next[key] = src;
+        }
+      }
       setImages(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Use a jpeg.");
@@ -1476,13 +1497,13 @@ export function TryScreen({
       />
       <StoryPager
         key={side}
-        stories={result.stories.filter((story) => story.path === side)}
+        stories={result.stories.filter((story) => story.path === side && story.kind !== "sketch")}
       />
     </Shell>
   );
 }
 
-const CARD_PAGES: ("trade" | "you")[] = ["trade", "you"];
+const CARD_PAGES: ("trade" | "you")[] = ["you", "trade"];
 
 // Names the disagreement. Never picks between them.
 function mustVsCrowd(saved: SavedDecision, result: DecideResult, kept: "a" | "b") {
@@ -1535,11 +1556,17 @@ export function CardScreen({
   onCommit,
   onLook,
   onAlarm,
+  onLeave,
+  onCloseDoor,
+  onReasons,
 }: {
   saved: SavedDecision;
   onCommit: (patch: Partial<SavedDecision>) => void;
   onLook: () => void;
   onAlarm: () => void;
+  onLeave: () => void;
+  onCloseDoor: () => void;
+  onReasons: () => void;
 }) {
   const router = useRouter();
   const result = saved.result;
@@ -1638,7 +1665,7 @@ export function CardScreen({
   const cost = savedCost(saved);
   const topWish = wishOf(result)[0];
   const mine = result.stories
-    .filter((story) => story.path === kept)
+    .filter((story) => story.path === kept && story.kind !== "sketch" && story.url)
     .toSorted((x, y) => y.strength - x.strength);
   const up = mine.find((story) => story.feeling === "glad");
   const down =
@@ -1652,10 +1679,10 @@ export function CardScreen({
         saved.checks ? (
           <Pair>
             <QuietButton onClick={() => onCommit({ step: "checks" })}>Check-ins</QuietButton>
-            <NextButton onClick={() => router.push("/")}>I’m done</NextButton>
+            <NextButton onClick={onLeave}>I’m done</NextButton>
           </Pair>
         ) : (
-          <NextButton onClick={() => router.push("/")}>I’m done</NextButton>
+          <NextButton onClick={onLeave}>I’m done</NextButton>
         )
       }
     >
@@ -1674,7 +1701,7 @@ export function CardScreen({
           {saved.gut?.still && !saved.gut.ignored ? (
             <img
               src={saved.gut.still}
-              alt="Your face at the coin"
+              alt="Your face when it landed"
               className="size-11 shrink-0 rounded-2xl object-cover"
             />
           ) : (
@@ -1721,7 +1748,9 @@ export function CardScreen({
                 </Row>
                 {saved.reasons ? (
                   <Row label="Your reasons">{`“${saved.reasons}”`}</Row>
-                ) : null}
+                ) : (
+                  <Row label="Your reasons">This shows first if you come back worried.</Row>
+                )}
                 {saved.unlockNote ? (
                   <Row label="What changed">{saved.unlockNote}</Row>
                 ) : null}
@@ -1746,7 +1775,7 @@ export function CardScreen({
           type="button"
           data-slot="button"
           className={SMALL}
-          onClick={() => onCommit({ kept: undefined })}
+          onClick={() => (locked ? onAlarm() : onCommit({ kept: undefined }))}
         >
           Switch
         </button>
@@ -1754,7 +1783,7 @@ export function CardScreen({
           type="button"
           data-slot="button"
           className={SMALL}
-          onClick={() => onCommit({ step: "reasons" })}
+          onClick={onReasons}
         >
           {saved.reasons ? "Why" : "Write why"}
         </button>
@@ -1762,9 +1791,7 @@ export function CardScreen({
           type="button"
           data-slot="button"
           className={SMALL}
-          onClick={() =>
-            locked ? onAlarm() : onCommit({ lockUntil: readNow() + LOCK_MS })
-          }
+          onClick={() => (locked ? onAlarm() : onCloseDoor())}
         >
           {locked ? "Closed" : "Close 30d"}
         </button>
@@ -1867,6 +1894,7 @@ export function ChecksScreen({
   path,
   onSave,
   onDone,
+  onLater,
 }: {
   checks: Check[];
   due: Check | null;
@@ -1878,6 +1906,7 @@ export function ChecksScreen({
     share: boolean,
   ) => void;
   onDone: () => void;
+  onLater?: () => void;
 }) {
   const [feeling, setFeeling] = useState<"glad" | "regret" | "same" | null>(
     null,
@@ -1890,12 +1919,24 @@ export function ChecksScreen({
       <Shell
         step={STEP_LABEL.checks}
         action={
-          <NextButton
-            disabled={!feeling}
-            onClick={() => feeling && onSave(due.label, feeling, note.trim(), share)}
-          >
-            Save
-          </NextButton>
+          onLater ? (
+            <Pair>
+              <QuietButton onClick={onLater}>Not now</QuietButton>
+              <NextButton
+                disabled={!feeling}
+                onClick={() => feeling && onSave(due.label, feeling, note.trim(), share)}
+              >
+                Save
+              </NextButton>
+            </Pair>
+          ) : (
+            <NextButton
+              disabled={!feeling}
+              onClick={() => feeling && onSave(due.label, feeling, note.trim(), share)}
+            >
+              Save
+            </NextButton>
+          )
         }
       >
         <Title
@@ -2052,7 +2093,7 @@ export function LockScreen({
               data-slot="button"
               aria-pressed={changed === chip}
               className={`h-9 rounded-xl border-2 px-2.5 text-xs whitespace-nowrap ${changed === chip ? "border-primary bg-primary/15" : "border-border"}`}
-              onClick={() => setChanged(chip)}
+              onClick={() => (chip === "Just looking" ? onRead() : setChanged(chip))}
             >
               {chip}
             </button>

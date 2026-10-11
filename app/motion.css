@@ -559,12 +559,14 @@ select {
   .deal-card,
   .door,
   .point-move,
+  .point-wander,
   .pet-step,
   .block-step,
   .coin-spin {
     transition: none;
   }
 
+  .point-wander,
   .coin-spin {
     animation: none !important;
   }
@@ -664,6 +666,20 @@ select {
   from {
     opacity: 0;
     transform: translateY(12px) scale(0.97);
+  }
+}
+
+.point-wander {
+  top: 18%;
+  animation: point-wander 800ms ease-in-out infinite alternate;
+}
+
+@keyframes point-wander {
+  from {
+    top: 18%;
+  }
+  to {
+    top: 72%;
   }
 }
 
