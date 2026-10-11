@@ -1,0 +1,101 @@
+---
+description: Ffomo product spec. A production app for any real decision, with no demo or seed content.
+alwaysApply: true
+---
+
+# Ffomo
+
+One sentence: Before or after a decision, Ffomo shows how it turned out for real people who already made it, what they wish they had known, where each path tends to lead, and then lets your gut make the final call.
+
+The name means fuck FOMO. The product says "Ffomo". Public copy can say "F the FOMO." Keep the full word off the interface.
+
+This is a production MVP, not a pitch demo. A stranger opens it, types the decision they are actually stuck on, and gets a real result. The car, the PhD, and the shirt in the brief are examples of the feeling. They are not content, not presets, and not a special case in the code.
+
+## The problem
+
+People get stuck before a decision and haunted after it. Both come from fearing a better path they are missing.
+
+Before: too many options, fear of future regret, chasing the best instead of good enough, comparing with other people's highlights, missing facts, and advice that disagrees. More searching adds more options. What ends it is real outcomes, a good-enough line, and a gut check.
+
+After: one new detail, other people's highlight reels, an imaginary perfect path, losses feeling bigger than they are, a door left open, and overestimating how long the feeling lasts.
+
+The feeling that started the project: a chatbot said buy the car and never mentioned a fact the owner only learned a week later. A verdict did not settle him. That story explains the product. Do not hardcode the car, the price, the hardware, or any other personal detail into the app.
+
+Research behind the product, for us, not for stuffing the UI:
+
+- Only 1 in 5 Gen Z want to make important life decisions entirely on their own (Ogilvy 2026 PULSE).
+- Maximizers report more regret than satisficers (Schwartz et al., 2002).
+- Reversible decisions lower satisfaction (Gilbert and Ebert, 2002; Bullens et al., 2013).
+- People overestimate how long feelings last (Wilson and Gilbert, 2005).
+- A coin flip used as a catalyst reveals preference (Jaffé and Greifeneder, PLoS ONE, 2021).
+- Models tend to agree with what the user seems to believe (Anthropic, 2023).
+
+Do not print these stats in the product UI.
+
+## Two signals, two modes
+
+Signal 1, crowd hindsight: outcome stories from people who took each path, plus what they wish they had known.
+
+Signal 2, your gut: a coin names a path, the camera catches about two seconds, a replay shows the reaction.
+
+The user says whether they have decided. The app does not ask them to pick a mode from a menu.
+
+- Not yet: both paths, Future You, Gut Check.
+- Already did: people who stayed vs people who switched, the cost if they have numbers, Gut Check.
+
+Both end on one card: the decision they are keeping, and one next step.
+
+## The session
+
+They type the decision in their own words. Shopping can include a photo of the thing, or of them.
+
+1. Read the fork and name the two paths in their words.
+2. Find follow-up and update posts from people who lived each path.
+3. Show both sides. Each story: what happened, how long ago, link to the original.
+4. Meter per side: raw count and story strength, captioned "what people reported." Under 1 month counts 1, from 1 month up to a year counts 2, a year or more counts 3. Unknown time counts 1. Both sides stay up. There is no winner.
+5. Wish-I'd-known, ranked from details that come up more than once.
+6. Future You at about a week, a year, and five years, written only from those stories. For a thing they can try on, show it on their photo.
+7. Gut Check. Coin, on-device reaction, replay, one observed sentence. They can ignore it.
+8. The card. Crowd, gut, top thing people wish they'd known, one next step.
+
+First question when it helps: "What are you afraid of missing?"
+
+- A fact → the wish-I'd-known list
+- What other people have → stories from later, not launch day
+- Money → their own cost of switching
+- Not knowing what they want → Gut Check
+- How it will feel later → Future You and check-ins
+
+Big decisions go through the whole thing: name it, check the facts, see both paths, three must-haves, gut, close the door, check in later. Small, easy-to-undo choices go to the coin. The app infers the size. A shirt does not become a research project.
+
+## What ships in the MVP
+
+- Both sides, including the flaws of the path they are romanticizing.
+- Wish-I'd-known list.
+- Meter labeled "what people reported." Raw count and strength, both visible. Never "the right answer."
+- Good-enough: three must-haves. If a path meets all three, say so in one sentence.
+- Gut Check as a mirror. "You smiled." Not "you should pick this."
+- Cost of switching, only from numbers they type.
+- Decision Lock for 30 days, optional. Unlock by writing one sentence about what changed.
+- Reasons Vault: their reasons, in their words, shown first if they come back worried.
+- Check-ins at 1 week, 1 month, and 6 months.
+- FOMO alarm: reopening a lock shows their reasons, their curve, and the cost before a new search.
+- Future You from the stories just found. Each beat links to a story. Never invent a life. Opt-in photo only. Funny is fine. Mean is not.
+- Try-on for a physical choice, plus how people felt about it weeks later.
+- Check-ins save on this device. Sharing them with the next person waits until those rows are really stored. Do not invent that dataset, and do not show a share button that goes nowhere.
+
+Same flow for school, work, money, shopping, relationships, home, health, tech, family, and free time. Health, money, and legal screens say these are other people's experiences, not professional advice.
+
+## What the app refuses to be
+
+A chatbot gives one blended verdict and stops. Ffomo shows both paths from people who lived them, including when the question is phrased to push one way. It stays after the choice, which is when the feeling actually hits. It reads a two-second reaction on the device. Text is easier to fake.
+
+Do not claim the model is smarter. The model can be swapped. The record of what people felt later is the part that compounds.
+
+## No demo data
+
+No seeded decisions, no sample stories, no placeholder quotes, no prefilled prices, no cached pitch forks, no "example" button that loads a fake result.
+
+If a search comes back thin, say the count and show what was actually found. "No one has posted about this yet" is a real screen.
+
+Tests may use fixtures. Users never see them.

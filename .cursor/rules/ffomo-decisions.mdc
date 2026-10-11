@@ -1,0 +1,63 @@
+---
+description: Locked product decisions. The latest user call overrides the hackathon demo plan.
+alwaysApply: true
+---
+
+# What is locked
+
+The revised brief and the October 9–10 brainstorm explain why Ffomo exists. Later instructions override them when they conflict.
+
+Conversation that produced the brief: https://claude.ai/chat/351cf73c-c7bf-43ab-b670-68ddf36dcdcf
+
+## This wins
+
+The user said to start. The app is this Next.js project. Keep building the session from the build rule. Do not re-scaffold, and do not add a second server, database, auth, or seed decisions.
+
+On October 10 the user said the Tesla was only an example for the product data. Build a production MVP. Drop every demo dataset. They then rejected the empty Tesla-style mockups. The screens must be the brief's app: a guided back-and-forth, both paths, the meter, wish-I'd-known, Future You pictures from their photo, try-on, gut check with a replay, the card, regret rescue, the lock, and check-ins. Plain human words. No AI-sounding copy. No ChatGPT window. They approved the stack and the network placement below.
+
+So:
+
+- Do not ship, cache, or prefetch the car fork, the PhD fork, the shirt fork, or any other sample decision.
+- Do not prefill prices, hardware facts, cartoon captions, or pitch-card sentences.
+- Do not treat "cache three demos and record a backup video" as the build.
+- The 24-hour cut that parked Future You, the lock, check-ins, and the rest on slides is retired. Those are part of the product. Build the session in the build rule.
+- The car story can be told out loud to explain the feeling. It is not a code path.
+- One Next.js app. One `POST /api/decide` call to current Gemini Flash: Google Search grounding plus one JSON schema. Link-check in that same route. Photo preview is a separate route, off the main path. `GEMINI_API_KEY` stays in env.
+- Memory for the MVP is `localStorage`. No database, auth, vector store, custom training, or sentiment library.
+- Three pretrained networks, none trained by us. Gemini reads the decision. MediaPipe reads the face on the phone. Gemini embeddings, later, only retrieve similar past check-ins. Nothing outputs "take this path."
+- Face video and face scores stay on the device. "You smiled" is a local threshold. Scores do not go to Gemini.
+- Story strength is hand-set and shown: under 1 month counts 1, from 1 month up to a year counts 2, a year or more counts 3, unknown time counts 1. Show that strength beside the raw count. A year-later post outweighs a first-week post. The two sides are never collapsed into a winner.
+- Check-ins stay on this device. A control that shares them with other people waits until those rows are really stored. Do not show a share button that goes nowhere.
+
+On October 10 the user added SmartSpectra (Presage) and the loopholes list. These override older lines where they conflict:
+
+- Gut Check asks first, camera second: "It landed on A. Did you wish it had landed on B?" Unsure stays open. The play rotates (cards, doors, point, pets, hold, scratch) and skips the last three this phone saw.
+- Three privacy lanes, said on screen. Smile read: video and frames stay on the phone. Pulse read: opt-in, small frames go to `/api/pulse`, where `@smartspectra/node-sdk` runs on our server and drops them; two numbers stay on the phone. Selfie for Future You: separate ask, off by default. Never say "nothing is uploaded".
+- `SMARTSPECTRA_API_KEY` stays in `.env`, server only, like the Gemini key. The SDK is native and process-global: one pulse read at a time, and it may not run on Vercel. Say so plainly when it can't.
+- Only describe what was computed: "You smiled" from the mouth-smile score, a pulse number per path. No breathing or mood claims.
+- `/api/decide` runs a second grounded call for spec facts beside the stories. Facts come from spec pages only, are link-checked, and show first on big decisions. No fact means "unchecked".
+- Stories must be a firsthand choice plus a later result. Each wish line carries the story links that say it. One post is labeled as one post.
+- The card shows the choice after they tap it, trade-offs with links, their reasons, what is still unknown, one next step, and "Reconsider if a material fact changes". Must-haves vs crowd disagreement is named, never resolved.
+- Cost is forward cost only. Future You pictures are drawn for both paths at the same horizon or not at all. The 30-day lock is called closing the door.
+
+## Still true from the brief and the chat
+
+- General audience. Any decision a person in the room is actually facing.
+- Outcomes only, split by path, plus a gut check. That combination is the product.
+- Real posts, link-checked. An earlier "we will have to use dummy data" note lost.
+- Gut Check is core. MediaPipe on the phone. Video and scores stay on the device.
+- The app helps before the choice and after it.
+- Depth scales with how big the decision is and how hard it is to undo.
+- Funny Future You is welcome when the stories support it. Insults are not. The word from the voice note stays out.
+- Chatbots answer and stop, and they tend to agree with you. Ffomo shows both lived paths and stays after the decision. Do not claim a smarter model.
+- Health, money, and legal copy stays humble.
+- Rejected products stay dead: benefits caseworker, scam-call shield, homework tutor, heartbeat exam, group-chat court, campus quest, and the other already-built camera ideas from the brainstorm.
+
+## When two docs disagree
+
+1. This file's "This wins" section.
+2. The build rule, for what to code.
+3. The UI rule, for how it looks and speaks.
+4. The product rule, for behavior.
+5. The revised brief, for psychology and feature intent.
+6. Earlier chat drafts.

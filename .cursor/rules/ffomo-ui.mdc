@@ -1,0 +1,69 @@
+---
+description: Ffomo visual direction. The brief's full app: guided questions, both paths, Future You photos, try-on, gut replay.
+alwaysApply: true
+---
+
+# Ffomo UI
+
+The screens are the brief, in one phone app. Plain words. Full screens. The fun is the product: a short back-and-forth, both lived paths, the meter, Future You drawn from their photo, a try-on, the coin, and their face in replay.
+
+Same chrome on every screen. Black field, white type, gray second line, one blue button at the bottom. Glad is green, regret is red. Header is the word Ffomo and the step name. Do not copy the Tesla app. Do not leave a screen as an empty status list.
+
+## Look
+
+The session reads as a guided exchange, not a ChatGPT window. Ffomo asks one short question. The person answers with a tap or a sentence. There is no open "ask the assistant" box and no blended verdict.
+
+Both paths stay on screen together. Each story is a real sentence, how long later, and the link. Under each path: how many wrote later, the strength, Glad and Regret. A year-later post counts more than a first-week post. No crown, no confidence score.
+
+Future You is pictures of them, made from their photo, at about a week, a year, and five years, with a caption taken from the stories. Funny is fine. Mean is not. The shirt path shows the same photo in both options, plus how people felt weeks later.
+
+Gut Check is a coin with the path name on it, then a replay still of their face, then one observed line. "You smiled." They can ignore it.
+
+The card, the cost they typed, the lock, their reasons, and the check-ins are their own screens. Same header, same button.
+
+Empty, loading, thin results, denied camera, and dropped links use the same row language. "No posts about this yet." "Couldn't open that link." "Camera stayed off."
+
+## Voice
+
+Short lines a person would say. A status, a time, a fact.
+
+Good:
+
+- "Keep it"
+- "Switch"
+- "12 people wrote later"
+- "Most were glad"
+- "You smiled"
+- "Check back in a week"
+- "3 things they wish they'd known"
+
+Bad:
+
+- "Let's unpack this decision together"
+- "Based on my analysis, the optimal path is…"
+- "Unlock clarity"
+- "Your personalized hindsight journey"
+- "AI confidence 87%"
+- "Path A · embark on your academic odyssey"
+
+No assistant voice. No pitch voice. No "Great question", "Certainly", "I'd be happy to", "delve", "elevate", "seamless", "next-gen", or "transformative". Buttons are what a person would tap: "See both", "Flip", "I'm done", "Not yet".
+
+Hide usernames. The summary is ours. The link is theirs. Money, medical, and legal screens add one plain line that these are other people's experiences.
+
+## Skills
+
+These rules win if a skill disagrees.
+
+1. `design-taste-frontend` so it does not look templated.
+2. `frontend-design` for a real direction, held to this file.
+3. `impeccable` for spacing, type, and quiet.
+4. `apple-design` and `emil-design-eng` for the coin, the replay, and press feedback. Motion on the object, not on the chrome.
+5. `shadcn` for controls, restyled to this dark quiet UI. Read `components.json` once it exists.
+6. `mobile-native` for the phone.
+7. `vercel-react-best-practices` while writing React.
+8. `web-design-guidelines` before a screen is done.
+9. `playwright-cli` or `webapp-testing` on a fresh decision, both sides, a link, empty or thin results, Gut Check or denied camera, and the card.
+
+`image-to-code` is for a marketing site, not for inventing product copy. `ui-ux-pro-max` is a pattern lookup, not a second brand.
+
+Do not apply unless asked: `industrial-brutalist-ui`, `minimalist-ui`, `design-taste-frontend-v1`, `banner-design`. Do not pull a TypeUI costume skin.

@@ -1,0 +1,95 @@
+---
+description: How to build the Ffomo production MVP. Real decisions only, no demo seed data.
+alwaysApply: true
+---
+
+# Build the MVP
+
+Ship a product a stranger can use for their own decision. HackRU is the deadline around the work, not a reason to seed a demo or leave the core loop on a slide.
+
+Build the whole session in the product rule until it works on a decision the app has never seen. Then make that session feel like a finished app. Do not stop at a happy path with sample copy.
+
+## Definition of done
+
+A new user can:
+
+1. Say what they are stuck on, and whether they already chose.
+2. See two paths named in their words.
+3. Read real, link-checked stories on both sides, with a glad/regret meter.
+4. Read the wish-I'd-known list those stories support.
+5. Enter their own cost numbers when money is the fear. No numbers are built in.
+6. Set three must-haves on a big decision and hear whether a path is good enough.
+7. Flip the coin, see their own reaction or a clear denied-camera state, and override it.
+8. Get one card: the call, and one next step.
+9. Leave and come back to the same decision, their reasons, and a lock if they set one.
+10. See Future You written only from the stories on screen, each beat linked.
+
+Empty, loading, failed-search, broken-link, and thin-result states are part of done. A refresh uses the cache of that user's real result. It does not load a packaged example.
+
+Check-in scheduling, the lock, and the reasons vault belong in this MVP because the product is what happens after the choice. They live on this device. Sharing a check-in with anyone else waits for a real database. Until then, do not offer that share.
+
+## Stack
+
+One Next.js app on Vercel. TypeScript, Tailwind, shadcn/ui restyled to the dark quiet UI. No second server, database, auth, vector store, or sentiment library.
+
+- `POST /api/decide` is the backend. `@google/genai` calls the current Gemini Flash with the Interactions API, Google Search grounding, and one Zod JSON schema. That call names the two paths, returns stories with source URLs, marks each story glad or regret, writes wish-I'd-known, and writes Future You beats that point at those story URLs.
+- The same route then fetches each URL and drops anything that does not load. Story strength is hand-set: under 1 month counts 1, from 1 month up to a year counts 2, a year or more counts 3, unknown time counts 1. The meter shows raw count and strength on each side. Do not collapse the two sides into a winner.
+- Gut Check is `@mediapipe/tasks-vision` in the browser. Video never uploads. The line on screen ("You smiled") comes from the smile score crossing a threshold. Scores do not go to Gemini.
+- `POST /api/preview` exists only after they upload a photo. It is not on the main path.
+- Their decision lives in localStorage. Reload reads that object. That is the cache. Do not ship a server cache of example forks.
+- `GEMINI_API_KEY` stays in env. Never in the client, never in a rule, never in git.
+
+Shape:
+
+```
+app/page.tsx                 what they are stuck on
+app/d/[id]/page.tsx          the session
+app/api/decide/route.ts      one grounded JSON call, then link checks
+app/api/preview/route.ts     photo path only
+lib/schema.ts                the one Zod schema
+lib/store.ts                 localStorage
+```
+
+Summaries are our words. The link is the original. Usernames stay hidden.
+
+Embeddings, a separate sentiment model, accounts, and a database wait until other people's check-ins are real data. Do not add them for the MVP.
+
+## Where the networks sit
+
+Three pretrained networks, each on the job it already does. We do not train weights.
+
+- Gemini reads the decision and returns the JSON: both path names, stories, glad or regret, wish-I'd-known, Future You. One call.
+- MediaPipe Face Landmarker reads the camera on the phone and returns expression scores. The gut line is a threshold on those scores.
+- Gemini embeddings, later, turn a fork sentence into a vector so a new decision can find past check-ins of the same kind. Cosine similarity groups those check-ins by the path people took. The result is more stories, not a chosen path.
+
+The code we write between them is the story strength above and the saved record of this user's own check-ins. Those are not learned weights. Their must-haves and gut reaction stay beside the meter. They are not multiplied into it.
+
+Personal memory is a record. Save the decision, their reasons, the gut line, the lock, and each check-in. The next visit shows that record first. New check-ins append. They do not retune a model.
+
+Retrieval comes later, and not before the rows exist:
+
+1. Now: story strength and this user's record in localStorage. No vectors.
+2. When check-ins are real rows in a database, store fork text, path taken, feeling, when, and their words.
+3. Turn the fork text into a vector with Gemini embeddings. Do not train those weights. Save the vector on the row.
+4. A new decision is embedded the same way. Cosine similarity returns the nearest check-ins. Group them by the path those people took and show them as stories, labeled as check-ins, under the same meter rules.
+
+That lookup does not choose a path.
+
+## Persistence
+
+The decision, the card, their reasons, the lock, and check-in dates survive a reload. Start with local persistence if an account would slow the first session. Do not require an account to finish a decision.
+
+## Verify
+
+Run a decision that is not in the brief. Confirm both sides, working links, the meter label, an empty or thin state, Gut Check or the denied-camera state, and a card that only contains what that run found. Reload and confirm it is the same run, not a seed.
+
+## Risks
+
+- Thin search: show the true count. Do not backfill from a demo pack.
+- Self-selected posters: the meter says "what people reported."
+- Future You drifting into fiction: every beat traces to a story on the page.
+- Broken links: drop the story.
+- Gut Check overclaiming: one observed sentence, easy to dismiss.
+- Lock feeling controlling: one sentence unlocks it.
+- Camera: on device, said on screen.
+- Money, medical, legal: experiences, not advice.
