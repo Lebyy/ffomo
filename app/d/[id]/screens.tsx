@@ -631,12 +631,14 @@ export function FactsScreen({
   result,
   label,
   onNext,
+  onHome,
   gate,
   ready = true,
 }: {
   result: DecideResult;
   label: string;
   onNext: () => void;
+  onHome?: () => void;
   gate?: React.ReactNode;
   ready?: boolean;
 }) {
@@ -645,9 +647,20 @@ export function FactsScreen({
     <Shell
       step={STEP_LABEL.facts}
       action={
-        <NextButton disabled={!ready} onClick={onNext}>
-          {label}
-        </NextButton>
+        <div className="flex flex-col gap-2">
+          <NextButton disabled={!ready} onClick={onNext}>
+            {label}
+          </NextButton>
+          {onHome ? (
+            <button
+              type="button"
+              className="h-11 text-sm text-muted-foreground"
+              onClick={onHome}
+            >
+              Home
+            </button>
+          ) : null}
+        </div>
       }
     >
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto [scrollbar-width:none]">
@@ -969,7 +982,7 @@ export function SearchingScreen({
           <p className="min-h-0 flex-1 text-sm text-muted-foreground">Still looking on this side.</p>
         )
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col justify-end gap-3">
+        <div className="flex shrink-0 flex-col justify-end gap-3">
           <div className="walk-track border-b-4 border-dotted border-muted pb-1">
             <span className="walker">
               <Pet kind="pup" mood="walk" size={48} />

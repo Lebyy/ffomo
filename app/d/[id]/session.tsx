@@ -519,6 +519,7 @@ export function Session({ id }: { id: string }) {
             />
           }
           onNext={() => forward()}
+          onHome={() => router.push("/")}
         />
       );
     }

@@ -182,7 +182,7 @@ function PlaySide({
         data-side={side}
         style={pace}
       >
-        <Pet kind={side === "a" ? "cat" : "duck"} mood={picked ? "hop" : "idle"} size={48} />
+        <Pet kind={side === "a" ? "cat" : "duck"} mood={open == null || picked ? "cheer" : "idle"} size={48} />
         <Fit max={15} min={11} lines={2} className="px-2 text-center font-pixel">
           {name}
         </Fit>
@@ -386,7 +386,9 @@ export function GutCheck({
   }, [lean]);
   const [play] = useState<Ritual>(() => pickPlay(id, readPlays()));
   const [playMs] = useState(() => (reduced() ? 400 : 15000));
-  const [watchMs] = useState(() => (reduced() ? 800 : 15000));
+  // The face is already being read during the play. This is only the flinch
+  // after the name shows, not a second timer they can pose for.
+  const [watchMs] = useState(() => (reduced() ? 250 : 1500));
   const [phase, setPhase] = useState<Phase>("spin");
   const [land, setLand] = useState<Side | null>(null);
   const [line, setLine] = useState("");
@@ -404,8 +406,8 @@ export function GutCheck({
     rememberPlay(play);
   }, [play]);
 
-  // The play runs for 15 seconds, then the face is read for 15 seconds.
-  // Scratching or holding does not skip either window.
+  // The play and the camera run together. The name shows at the end of the
+  // play, and the face read is the short reaction right then.
   useEffect(() => {
     let cancel = false;
     let chosen: Lean = null;
@@ -547,7 +549,7 @@ export function GutCheck({
         : phase === "read"
           ? readSub()
           : phase === "watch"
-            ? "It landed. Fifteen seconds on your face. On this phone."
+            ? "It landed. On this phone."
             : `${SPIN_SUB[play]} Fifteen seconds.`;
 
   let action: ReactNode;
@@ -581,7 +583,12 @@ export function GutCheck({
 
   return (
     <Shell step="Gut check" action={action}>
-      <Bubble from="ffomo" face pet="frog" mood={land ? "idle" : "look"}>
+      <Bubble
+        from="ffomo"
+        face
+        pet="frog"
+        mood={phase === "spin" || phase === "watch" ? "cheer" : land ? "idle" : "look"}
+      >
         <p className="font-pixel text-lg leading-tight font-semibold text-balance">{title}</p>
         <p className="mt-1 text-pretty text-muted-foreground">{sub}</p>
         {phase === "spin" ? (
