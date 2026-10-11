@@ -573,8 +573,9 @@ thing is true only when they are choosing between items they would wear or carry
 questions are up to three short questions that would change which posts are worth finding: their field, school, city, budget, timeline, family, the offer they have. Ask about them, not about feelings.
 Each question is under ten words, plain, the way a friend would ask. No "Great question".
 choices are two to four short taps when the answer is a pick. Leave choices empty when it needs their own words, like a school name.
+fears are five options for "What are you afraid of missing?", written for THIS decision in their words, each a real thing someone could fear losing on it. Make each specific to the decision, never the generic word. Each carries one id: "fact" a detail or truth they do not have yet, "others" what other people have or are doing, "money" a cost or money worry, "want" not knowing what they actually want, "later" how it will feel down the line. Use each id at most once, and order them by how well they fit this decision. For "should I leave my partner", fears might be "Regretting it later"/later, "Someone better out there"/others, "That it could still get better"/fact, "Being on my own"/want, "Splitting the money"/money. Small decisions still get fears. Only leave fears empty if you truly cannot name any.
 If they sent a photo, name pathA and pathB from what is in the photo, in their words. thing is true. The two paths should be the real options that photo implies, like the item vs the other option they typed.
-Big decisions always get two or three questions. Small decisions get zero. Never ask what they are afraid of missing.`;
+Big decisions always get two or three questions. Small decisions get zero. Never ask what they are afraid of missing as one of the questions; the fears list covers it.`;
 
 function fitFork(value: unknown) {
   if (!value || typeof value !== "object") return value;
@@ -601,12 +602,23 @@ function fitFork(value: unknown) {
           (item): item is string => typeof item === "string" && item.length > 0,
         )
     : [];
+  const fearIds = ["fact", "others", "money", "want", "later"];
+  const fears = Array.isArray(raw.fears)
+    ? raw.fears.slice(0, 5).flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const row = item as Record<string, unknown>;
+        const id = typeof row.id === "string" && fearIds.includes(row.id) ? row.id : null;
+        const label = typeof row.label === "string" ? (clip(row.label, 40) as string) : "";
+        return id && label ? [{ label, id }] : [];
+      })
+    : [];
   return {
     ...raw,
     pathA: clip(raw.pathA, 80),
     pathB: clip(raw.pathB, 80),
     others,
     questions,
+    fears,
   };
 }
 

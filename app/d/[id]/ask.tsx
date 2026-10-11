@@ -96,13 +96,17 @@ export function AskScreen({
   }
   const big =
     stakesOf({ decision: saved.decision, size: fork?.size }) === "big";
+  // The model writes fear options in the decision's own words. Fall back to the
+  // five generic ones only when it returns nothing.
+  const fearOptions =
+    fork?.fears && fork.fears.length >= 2 ? fork.fears : FEARS;
   const questions: Question[] = [
     ...(fork?.questions ?? []).map((item) => ({
       text: item.text,
       choices: item.choices,
     })),
     ...(big
-      ? [{ text: FEAR_Q, choices: FEARS.map((item) => item.label), fear: true }]
+      ? [{ text: FEAR_Q, choices: fearOptions.map((item) => item.label), fear: true }]
       : []),
   ];
   const done = ready && index >= questions.length;
@@ -123,7 +127,7 @@ export function AskScreen({
     questions.forEach((question, i) => {
       const value = replies[i];
       if (!value) return;
-      if (question.fear) fear = FEARS.find((item) => item.label === value)?.id;
+      if (question.fear) fear = fearOptions.find((item) => item.label === value)?.id;
       else answers.push({ q: question.text, a: value });
     });
     onDone(answers, fear);

@@ -23,6 +23,8 @@ export const askRequestSchema = z.object({
   image: z.string().min(1).max(8_000_000).optional(),
 });
 
+export const fearIdSchema = z.enum(["fact", "others", "money", "want", "later"]);
+
 export const askSchema = z.object({
   pathA: z.string().trim().min(1).max(80),
   pathB: z.string().trim().min(1).max(80),
@@ -37,6 +39,15 @@ export const askSchema = z.object({
       }),
     )
     .max(3),
+  fears: z
+    .array(
+      z.object({
+        label: z.string().trim().min(1).max(40),
+        id: fearIdSchema,
+      }),
+    )
+    .max(5)
+    .optional(),
 });
 
 export type Fork = z.infer<typeof askSchema>;
