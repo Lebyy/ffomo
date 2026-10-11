@@ -2,24 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { faceScore, loadFace } from "@/lib/gut";
-import { markLive, pushScore, setGrabber } from "@/lib/watch";
+import { markLive, pushScore, setStream } from "@/lib/watch";
 
-function frame(video: HTMLVideoElement) {
-  if (!video.videoWidth) return;
-  const width = 240;
-  const height = Math.max(1, Math.round((width * video.videoHeight) / video.videoWidth));
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  ctx.translate(width, 0);
-  ctx.scale(-1, 1);
-  ctx.drawImage(video, 0, 0, width, height);
-  return canvas.toDataURL("image/jpeg", 0.72);
-}
-
-// One camera for the whole session. No preview.
+// One camera for the gut check. No preview here; the gut screen shows the
+// same stream. Detection runs at about 20 fps so the live feed stays smooth.
 export function FaceWatch() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -29,7 +15,7 @@ export function FaceWatch() {
     let cancel = false;
     let stream: MediaStream | null = null;
     let raf = 0;
-    setGrabber(() => frame(video));
+    let lastDetect = 0;
 
     void (async () => {
       try {
@@ -43,15 +29,18 @@ export function FaceWatch() {
           return;
         }
         markLive(true);
+        setStream(stream);
         video.srcObject = stream;
         await video.play();
         const marker = await loadFace();
         if (cancel) return;
         const tick = () => {
           if (cancel) return;
-          if (video.readyState >= 2) {
-            const score = faceScore(marker.detectForVideo(video, performance.now()));
-            if (score) pushScore(score);
+          const now = performance.now();
+          if (video.readyState >= 2 && now - lastDetect >= 50) {
+            lastDetect = now;
+            const score = faceScore(marker.detectForVideo(video, now));
+            if (score) pushScore(score, now);
           }
           raf = requestAnimationFrame(tick);
         };
@@ -64,8 +53,8 @@ export function FaceWatch() {
     return () => {
       cancel = true;
       cancelAnimationFrame(raf);
-      setGrabber(null);
       markLive(false);
+      setStream(null);
       stream?.getTracks().forEach((track) => track.stop());
       video.srcObject = null;
     };

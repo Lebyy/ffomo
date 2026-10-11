@@ -596,7 +596,7 @@ export function Session({ id }: { id: string }) {
     <Back value={{ label: "Back", go: goBack }}>
       <Now value={canSkip ? () => commit({ step: "card" }) : null}>
         <Progress value={progress}>
-          <FaceWatch />
+          {screen === "gut" ? <FaceWatch /> : null}
           {body()}
           {saved.voice ? <VoiceBar saved={saved} screen={screen} live={live} /> : null}
         </Progress>

@@ -6,11 +6,11 @@ import { Fit } from "@/components/fit";
 import { Pair, Shell } from "@/components/shell";
 import { Pet } from "@/components/pet";
 import { coinLand, pulseLine, type GutRecord, type Lean } from "@/lib/flow";
-import { grabFace, reactionAt, reactionLine, watchLive } from "@/lib/watch";
+import { getStream, reactionVerdict, watchLive } from "@/lib/watch";
 import { PulseRead } from "./pulse";
 
 type Side = "a" | "b";
-type Phase = "spin" | "read" | "pulse";
+type Phase = "spin" | "watch" | "read" | "pulse";
 
 const BIG = "ledge h-13 w-full rounded-2xl font-pixel text-lg font-semibold";
 const QUIET = "ledge ledge-quiet h-13 w-full rounded-2xl text-base";
@@ -23,6 +23,13 @@ function lastCoin(): Side | null {
   } catch {
     return null;
   }
+}
+
+function reduced() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
 }
 
 export function GutCheck({
@@ -41,30 +48,63 @@ export function GutCheck({
   onDone: (gut: GutRecord) => void;
 }) {
   const leanRef = useRef(lean);
-  leanRef.current = lean;
+  useEffect(() => {
+    leanRef.current = lean;
+  }, [lean]);
   const [turns] = useState(() => 4 + Math.floor(Math.random() * 4));
-  const [spinMs] = useState(() => {
-    const reduced =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    return reduced ? 240 : 1500 + Math.floor(Math.random() * 800);
-  });
+  const [spinMs] = useState(() =>
+    reduced() ? 300 : 2800 + Math.floor(Math.random() * 700),
+  );
+  const [watchMs] = useState(() => (reduced() ? 1200 : 12000));
   const [phase, setPhase] = useState<Phase>("spin");
   const [land, setLand] = useState<Side | null>(null);
   const [line, setLine] = useState("");
-  const [still, setStill] = useState<string | undefined>();
   const [pulse, setPulse] = useState<GutRecord["pulse"]>();
   const [extra, setExtra] = useState<"smile" | "pulse">("smile");
+  const [camOn, setCamOn] = useState(false);
+  const camRef = useRef<HTMLVideoElement>(null);
   const name = (key: Side) => (key === "a" ? pathA : pathB);
+  const landedName = land ? name(land) : "";
   const saidKey = said.join("\n");
 
+  // Spin, land, then read every frame for the whole window before the verdict.
   useEffect(() => {
     let cancel = false;
-    let landed = false;
+    let scheduled = false;
     const timers: number[] = [];
     const started = performance.now();
-    const arm = window.setTimeout(() => finish(leanRef.current), 1200);
-    if (leanRef.current || saidKey.length === 0) finish(leanRef.current);
+    const arm = window.setTimeout(() => landNow(leanRef.current), 1200);
+
+    function landNow(next: Lean) {
+      if (cancel || scheduled) return;
+      scheduled = true;
+      window.clearTimeout(arm);
+      const wait = Math.max(0, spinMs - (performance.now() - started));
+      timers.push(
+        window.setTimeout(() => {
+          if (cancel) return;
+          const side = coinLand(next ?? leanRef.current, Math.random(), lastCoin());
+          try {
+            sessionStorage.setItem(COIN, side);
+          } catch {
+            /* the next flip can repeat */
+          }
+          setLand(side);
+          setPhase("watch");
+          const at = performance.now();
+          timers.push(
+            window.setTimeout(() => {
+              if (cancel) return;
+              const read = reactionVerdict(at, performance.now(), watchLive());
+              setLine(read.line);
+              setPhase("read");
+            }, watchMs),
+          );
+        }, wait),
+      );
+    }
+
+    if (leanRef.current || saidKey.length === 0) landNow(leanRef.current);
     else {
       const lines = saidKey.split("\n").filter(Boolean);
       void fetch("/api/lean", {
@@ -79,41 +119,13 @@ export function GutCheck({
       })
         .then((res) => (res.ok ? res.json() : null))
         .then((data: { path?: string; quote?: string } | null) => {
-          if (cancel || (data?.path !== "a" && data?.path !== "b")) return;
-          finish({ path: data.path, why: data.quote || "From what you said." });
+          if (cancel) return;
+          if (data?.path !== "a" && data?.path !== "b") return landNow(null);
+          landNow({ path: data.path, why: data.quote || "From what you said." });
         })
         .catch(() => {
-          if (!cancel) finish(null);
+          if (!cancel) landNow(null);
         });
-    }
-
-    function finish(next: Lean) {
-      if (cancel || landed) return;
-      landed = true;
-      window.clearTimeout(arm);
-      const wait = Math.max(0, spinMs - (performance.now() - started));
-      timers.push(
-        window.setTimeout(() => {
-          if (cancel) return;
-          const side = coinLand(next ?? leanRef.current, Math.random(), lastCoin());
-          try {
-            sessionStorage.setItem(COIN, side);
-          } catch {
-            /* the next flip can repeat */
-          }
-          setLand(side);
-          const at = performance.now();
-          timers.push(
-            window.setTimeout(() => {
-              if (cancel) return;
-              const read = reactionAt(at);
-              setLine(reactionLine(read.before, read.after, read.saw, watchLive()));
-              setStill(grabFace());
-              setPhase("read");
-            }, 1700),
-          );
-        }, wait),
-      );
     }
 
     return () => {
@@ -121,16 +133,39 @@ export function GutCheck({
       window.clearTimeout(arm);
       timers.forEach((id) => window.clearTimeout(id));
     };
-  }, [decision, pathA, pathB, saidKey, spinMs]);
+  }, [decision, pathA, pathB, saidKey, spinMs, watchMs]);
+
+  // Show the same session camera next to the coin while it spins and reads.
+  useEffect(() => {
+    if (phase !== "spin" && phase !== "watch") return;
+    let stop = false;
+    const attach = () => {
+      const video = camRef.current;
+      const stream = getStream();
+      if (video && stream) {
+        if (video.srcObject !== stream) video.srcObject = stream;
+        void video.play().catch(() => {});
+        setCamOn(true);
+        return true;
+      }
+      return false;
+    };
+    if (attach()) return;
+    const timer = window.setInterval(() => {
+      if (stop || attach()) window.clearInterval(timer);
+    }, 150);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, [phase]);
 
   function done(ignored: boolean) {
     if (!land) return;
-    const keepStill = !ignored && still && still.length <= 120_000 ? still : undefined;
     onDone({
       path: land,
       line,
       ignored,
-      still: keepStill,
       pulse: !ignored ? pulse : undefined,
     });
   }
@@ -139,25 +174,35 @@ export function GutCheck({
     line === "Camera stayed off." ||
     line === "Couldn't see a face." ||
     (phase === "read" && extra === "pulse" && (pulse?.a ?? pulse?.b) == null);
-  const title = phase === "read" ? line : land ? name(land) : "The coin";
+
+  const title =
+    phase === "read" ? line : phase === "watch" ? landedName : "The coin";
+
+  function readSub() {
+    if (noRead) return "Nothing to keep from that.";
+    if (extra === "pulse")
+      return "A 12-second average from your face. Up can mean excited or nervous. Not medical. Not a decision.";
+    if (line === "You smiled.")
+      return `A smile at ${landedName}, read on this phone from every frame. A smile is not a decision.`;
+    if (line === "You looked unsure.")
+      return `You looked unsure at ${landedName}, not glad, not sorry. Nothing to lock in. Your call.`;
+    return `No smile at ${landedName}, read on this phone from every frame. Still your call.`;
+  }
+
   const sub =
     phase === "pulse"
       ? "Look at each path. Frames go to the Ffomo server for SmartSpectra, then get dropped."
       : phase === "read"
-        ? noRead
-          ? "Nothing to keep from that."
-          : extra === "pulse"
-            ? "A 12-second average from your face. Up can mean excited or nervous. Not medical. Not a decision."
-            : `At ${land ? name(land) : ""}. From the mouth after it landed. On this phone. A smile is not a decision.`
-        : land
-          ? "It landed."
-          : "Let it land.";
+        ? readSub()
+        : phase === "watch"
+          ? "It landed. Keep your face in view while it reads."
+          : "Let it land. Watch the coin.";
 
   let action: ReactNode;
-  if (phase === "spin" || phase === "pulse") {
+  if (phase === "spin" || phase === "watch" || phase === "pulse") {
     action = (
       <Button type="button" className={BIG} disabled>
-        {phase === "pulse" ? "Reading" : "Flipping"}
+        {phase === "spin" ? "Flipping" : "Reading"}
       </Button>
     );
   } else if (noRead) {
@@ -192,15 +237,49 @@ export function GutCheck({
         </div>
         <Pet kind="frog" mood={land ? "idle" : "look"} size={48} />
       </div>
-      {phase === "spin" ? (
-        <div className="grid min-h-0 flex-1 place-items-center">
-          <div
-            className="coin-spin grid size-40 place-items-center rounded-full bg-primary px-4 text-center text-primary-foreground"
-            style={{ ["--turns" as string]: String(turns), ["--spin" as string]: `${spinMs}ms` }}
-          >
-            <Fit max={18} min={12} lines={3} className="font-pixel font-semibold">
-              {land ? name(land) : "Ffomo"}
-            </Fit>
+      {phase === "spin" || phase === "watch" ? (
+        <div className="grid min-h-0 flex-1 grid-cols-2 gap-3">
+          <div className="grid place-items-center">
+            {phase === "spin" ? (
+              <div
+                className="coin-spin grid size-32 place-items-center rounded-full bg-primary px-3 text-center text-primary-foreground"
+                style={{
+                  ["--turns" as string]: String(turns),
+                  ["--spin" as string]: `${spinMs}ms`,
+                }}
+              >
+                <Fit max={16} min={11} lines={3} className="font-pixel font-semibold">
+                  Ffomo
+                </Fit>
+              </div>
+            ) : (
+              <div className="pop-in grid size-32 place-items-center rounded-full bg-primary px-3 text-center text-primary-foreground">
+                <Fit max={16} min={11} lines={3} className="font-pixel font-semibold">
+                  {landedName}
+                </Fit>
+              </div>
+            )}
+          </div>
+          <div className="relative min-h-0 overflow-hidden rounded-3xl bg-muted">
+            <video
+              ref={camRef}
+              playsInline
+              muted
+              className="h-full w-full object-cover [transform:scaleX(-1)]"
+            />
+            {camOn ? null : (
+              <div className="absolute inset-0 grid place-items-center">
+                <Pet kind="owl" mood="look" size={44} />
+              </div>
+            )}
+            {phase === "watch" ? (
+              <span className="absolute inset-x-2 bottom-2 block h-1.5 overflow-hidden rounded-full bg-background/70">
+                <span
+                  className="run-bar block h-full bg-primary"
+                  style={{ "--run": `${watchMs}ms` } as React.CSSProperties}
+                />
+              </span>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -228,16 +307,15 @@ export function GutCheck({
           Pulse too · 35 sec. Frames go to our server, then get dropped.
         </button>
       ) : null}
-      {phase === "read" && still && extra === "smile" ? (
-        <img
-          src={still}
-          alt="Your face just after it landed"
-          className="enter-fade min-h-0 w-full flex-1 rounded-3xl object-cover"
-        />
-      ) : null}
-      {phase === "read" && !still ? (
+      {phase === "read" ? (
         <div className="grid min-h-0 flex-1 place-items-center rounded-3xl bg-card/60">
-          <Pet kind="owl" mood={noRead ? "sleep" : "look"} size={64} />
+          <Pet
+            kind={noRead ? "owl" : "frog"}
+            mood={
+              line === "You smiled." ? "cheer" : noRead ? "sleep" : "look"
+            }
+            size={72}
+          />
         </div>
       ) : null}
     </Shell>
