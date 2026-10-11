@@ -46,7 +46,7 @@ export function AskScreen({
 }: {
   saved: SavedDecision;
   onFork: (fork: Fork, paired?: boolean) => void;
-  onDone: (answers: Answer[], fear?: Fear) => void;
+  onDone: (answers: Answer[], fear?: Fear, fearLine?: string) => void;
   onBack: () => void;
 }) {
   const fork = saved.fork;
@@ -124,13 +124,17 @@ export function AskScreen({
   function finish() {
     const answers: Answer[] = [];
     let fear: Fear | undefined;
+    let fearLine: string | undefined;
     questions.forEach((question, i) => {
       const value = replies[i];
       if (!value) return;
-      if (question.fear) fear = fearOptions.find((item) => item.label === value)?.id;
-      else answers.push({ q: question.text, a: value });
+      if (question.fear) {
+        const picked = fearOptions.find((item) => item.label === value);
+        fear = picked?.id;
+        fearLine = picked?.label;
+      } else answers.push({ q: question.text, a: value });
     });
-    onDone(answers, fear);
+    onDone(answers, fear, fearLine);
   }
 
   const typed = draft.trim();

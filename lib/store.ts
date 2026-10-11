@@ -21,6 +21,7 @@ export type SavedDecision = {
   shot?: string;
   step?: Step;
   fear?: Fear;
+  fearLine?: string;
   cost?: Cost;
   musts?: string[];
   enough?: string;

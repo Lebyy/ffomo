@@ -56,11 +56,16 @@ function clip(text: string, max: number) {
   return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
 }
 
+function fearWords(saved: SavedDecision) {
+  if (saved.fearLine) return saved.fearLine;
+  return FEARS.find((item) => item.id === saved.fear)?.label ?? "";
+}
+
 function saidOf(saved: SavedDecision) {
-  const fear = FEARS.find((item) => item.id === saved.fear);
+  const fear = fearWords(saved);
   return [
     ...(saved.answers ?? []).map((item) => `${item.q} ${item.a}`),
-    fear ? `Afraid of missing: ${fear.label}` : "",
+    fear ? `Afraid of missing: ${fear}` : "",
     ...(saved.musts ?? []).map((item) => `Must have: ${item}`),
     saved.enough ?? "",
     saved.reasons ?? "",
@@ -75,8 +80,8 @@ function searchBody(saved: SavedDecision) {
   const context = (saved.answers ?? [])
     .slice(-4)
     .map((item) => `${clip(item.q, 40)} ${clip(item.a, 80)}`);
-  const fear = FEARS.find((item) => item.id === saved.fear);
-  if (fear) context.push(`Afraid of missing: ${fear.label}`);
+  const fear = fearWords(saved);
+  if (fear) context.push(`Afraid of missing: ${fear}`);
   return {
     decision: clip(saved.decision, 240),
     when: saved.when,
@@ -406,14 +411,16 @@ export function Session({ id }: { id: string }) {
               paired: paired ? true : undefined,
             })
           }
-          onDone={(answers, fear) => {
+          onDone={(answers, fear, fearLine) => {
             const next: SavedDecision = {
               ...(readDecision(saved.id) ?? saved),
               asked: true,
               answers,
               fear,
+              fearLine,
             };
             if (!fear) delete next.fear;
+            if (!fearLine) delete next.fearLine;
             saveDecision(next);
             setSaved(next);
             void look(next);

@@ -40,6 +40,13 @@ function lineFor(saved: SavedDecision, screen: Screen, live: LiveSearch) {
   return "";
 }
 
+let shared: AudioContext | null = null;
+
+function audioContext() {
+  if (!shared || shared.state === "closed") shared = new AudioContext();
+  return shared;
+}
+
 async function speak(text: string, signal: AbortSignal) {
   const res = await fetch("/api/speak", {
     method: "POST",
@@ -47,9 +54,16 @@ async function speak(text: string, signal: AbortSignal) {
     body: JSON.stringify({ text }),
     signal,
   });
-  if (!res.ok) throw new Error("Couldn't speak that.");
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error || "Couldn't speak that.");
+  }
   const buf = await res.arrayBuffer();
-  const ctx = new AudioContext();
+  const ctx = audioContext();
+  if (ctx.state === "suspended") await ctx.resume();
+  if (ctx.state === "suspended") {
+    throw new Error("Tap once so it can talk.");
+  }
   const audio = await ctx.decodeAudioData(buf.slice(0));
   const src = ctx.createBufferSource();
   src.buffer = audio;
@@ -57,13 +71,15 @@ async function speak(text: string, signal: AbortSignal) {
   await new Promise<void>((resolve, reject) => {
     src.onended = () => resolve();
     signal.addEventListener("abort", () => {
-      src.stop();
-      void ctx.close();
+      try {
+        src.stop();
+      } catch {
+        /* already stopped */
+      }
       reject(new DOMException("aborted", "AbortError"));
     });
     src.start();
   });
-  await ctx.close();
 }
 
 type Rec = {
@@ -101,23 +117,50 @@ export function VoiceBar({
   const [mood, setMood] = useState<"idle" | "listen" | "talk">("idle");
   const [heard, setHeard] = useState("");
   const last = useRef("");
+  const pending = useRef("");
+  const stop = useRef<AbortController | null>(null);
   const say = useEffectEvent(async (text: string) => {
     if (!text || text === last.current) return;
-    last.current = text;
+    stop.current?.abort();
     const ac = new AbortController();
+    stop.current = ac;
     setMood("talk");
     try {
       await speak(text, ac.signal);
-    } catch {
-      /* keep going */
+      if (stop.current !== ac) return;
+      last.current = text;
+      pending.current = "";
+      setHeard("");
+    } catch (err) {
+      if (stop.current !== ac) return;
+      if ((err as Error).name !== "AbortError") {
+        const message = err instanceof Error ? err.message : "Couldn't speak that.";
+        pending.current = message === "Tap once so it can talk." ? text : "";
+        setHeard(message);
+      }
+    } finally {
+      if (stop.current === ac) setMood("idle");
     }
-    setMood("idle");
   });
 
   useEffect(() => {
     void say(lineFor(saved, screen, live));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, live.posts, live.stories.length, saved.id]);
+
+  useEffect(() => {
+    const unlock = () => {
+      const ctx = audioContext();
+      void ctx.resume().then(() => {
+        if (!pending.current) return;
+        const text = pending.current;
+        pending.current = "";
+        void say(text);
+      });
+    };
+    window.addEventListener("pointerdown", unlock);
+    return () => window.removeEventListener("pointerdown", unlock);
+  }, []);
 
   async function hear() {
     setMood("listen");

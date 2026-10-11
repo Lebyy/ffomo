@@ -64,21 +64,45 @@ function PlayBoard({
   phase,
   land,
   name,
-  onNudge,
+  holdMs,
 }: {
   play: Ritual;
   phase: "spin" | "watch";
   land: Side | null;
   name: (key: Side) => string;
-  onNudge: () => void;
+  holdMs: number;
 }) {
   const open = phase === "watch" ? land : null;
-  if (play === "hold") return <HoldPad open={open} name={name} onNudge={onNudge} />;
-  if (play === "scratch") return <ScratchPad open={open} name={name} onNudge={onNudge} />;
+  const pace = { "--play": `${holdMs}ms` } as React.CSSProperties;
+  if (play === "hold") return <HoldPad open={open} name={name} holdMs={holdMs} />;
+  if (play === "scratch") return <ScratchPad open={open} name={name} ms={holdMs} />;
+  if (play === "point") {
+    return (
+      <div className="relative flex h-full min-h-0 flex-col gap-2">
+        {(["a", "b"] as const).map((side) => (
+          <div
+            key={side}
+            className={`flex min-h-0 flex-1 items-center rounded-2xl border-2 px-3 ${
+              open === side ? "border-primary" : "border-border"
+            }`}
+          >
+            <Fit max={16} min={12} lines={2} className="pl-5 font-pixel">
+              {name(side)}
+            </Fit>
+          </div>
+        ))}
+        <span
+          className={`point-mark absolute left-2 size-3 rounded-full bg-primary ${open ? "is-set" : ""}`}
+          data-side={open ?? "move"}
+          style={pace}
+        />
+      </div>
+    );
+  }
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2">
+    <div className="play-stage flex h-full min-h-0 flex-col gap-2">
       {(["a", "b"] as const).map((side) => (
-        <PlaySide key={side} play={play} side={side} open={open} name={name(side)} />
+        <PlaySide key={side} play={play} side={side} open={open} name={name(side)} pace={pace} />
       ))}
     </div>
   );
@@ -89,18 +113,22 @@ function PlaySide({
   side,
   open,
   name,
+  pace,
 }: {
   play: Ritual;
   side: Side;
   open: Side | null;
   name: string;
+  pace: React.CSSProperties;
 }) {
   const picked = open === side;
+  const resting = open != null && !picked;
   if (play === "cards") {
     return (
       <div
-        className={`deal-card min-h-0 flex-1 ${picked ? "is-open is-landed" : ""}`}
-        style={{ height: "auto" }}
+        className={`deal-card min-h-0 flex-1 ${picked ? "is-open is-landed" : resting ? "is-rest" : "is-live"}`}
+        data-side={side}
+        style={{ height: "auto", ...pace }}
       >
         <span className="deal-face" aria-hidden />
         <span className="deal-back">
@@ -119,7 +147,11 @@ function PlaySide({
             {name}
           </Fit>
         </div>
-        <div className={`door absolute inset-0 rounded-2xl ${picked ? "is-open" : ""}`} />
+        <div
+          className={`door absolute inset-0 rounded-2xl ${picked ? "is-open" : resting ? "is-shut" : "is-live"}`}
+          data-side={side}
+          style={pace}
+        />
       </div>
     );
   }
@@ -127,8 +159,10 @@ function PlaySide({
     return (
       <div
         className={`pet-step flex min-h-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl bg-card ${
-          picked ? "is-picked" : open ? "is-other" : ""
+          picked ? "is-picked" : open ? "is-other" : "is-live"
         }`}
+        data-side={side}
+        style={pace}
       >
         <Pet kind={side === "a" ? "cat" : "duck"} mood={picked ? "hop" : "idle"} size={48} />
         <Fit max={15} min={11} lines={2} className="px-2 text-center font-pixel">
@@ -137,54 +171,32 @@ function PlaySide({
       </div>
     );
   }
-  return (
-    <div
-      className={`relative flex min-h-0 flex-1 items-center rounded-2xl border-2 px-3 ${
-        picked ? "border-primary" : "border-border"
-      }`}
-    >
-      {open == null && side === "a" ? (
-        <span className="point-wander absolute left-2 size-3 rounded-full bg-primary" />
-      ) : null}
-      {picked ? <span className="point-move absolute left-2 size-3 rounded-full bg-primary" /> : null}
-      <Fit max={16} min={12} lines={2} className="pl-5 font-pixel">
-        {name}
-      </Fit>
-    </div>
-  );
+  return null;
 }
 
 function HoldPad({
   open,
   name,
-  onNudge,
+  holdMs,
 }: {
   open: Side | null;
   name: (key: Side) => string;
-  onNudge: () => void;
+  holdMs: number;
 }) {
   const [holding, setHolding] = useState(false);
-  const timer = useRef(0);
-  function start() {
-    setHolding(true);
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(onNudge, reduced() ? 200 : 900);
-  }
-  function stop() {
-    setHolding(false);
-    window.clearTimeout(timer.current);
-  }
-  useEffect(() => () => window.clearTimeout(timer.current), []);
   return (
     <button
       type="button"
       className="relative flex h-full flex-col justify-end overflow-hidden rounded-3xl bg-card text-left"
-      onPointerDown={start}
-      onPointerUp={stop}
-      onPointerLeave={stop}
-      onPointerCancel={stop}
+      onPointerDown={() => setHolding(true)}
+      onPointerUp={() => setHolding(false)}
+      onPointerLeave={() => setHolding(false)}
+      onPointerCancel={() => setHolding(false)}
     >
-      <span className={`hold-fill absolute inset-y-0 left-0 w-full bg-primary/25 ${holding ? "is-holding" : ""}`} />
+      <span
+        className={`hold-fill absolute inset-y-0 left-0 w-full bg-primary/25 ${holding ? "is-holding" : ""}`}
+        style={{ "--hold": `${holdMs}ms` } as React.CSSProperties}
+      />
       <span className="relative p-3 font-pixel text-lg">
         {open ? name(open) : "Hold"}
       </span>
@@ -192,51 +204,119 @@ function HoldPad({
   );
 }
 
+function coat(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "#6ea8ff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "rgba(255,255,255,0.18)";
+  for (let y = 8; y < h; y += 16) {
+    for (let x = (y / 16) % 2 ? 8 : 0; x < w; x += 16) ctx.fillRect(x, y, 8, 8);
+  }
+}
+
+function scratchPath(w: number, h: number) {
+  const pts: { x: number; y: number }[] = [];
+  const rows = 7;
+  for (let i = 0; i < rows; i++) {
+    const y = h * (0.08 + (0.84 * i) / (rows - 1));
+    const left = w * 0.08;
+    const right = w * 0.92;
+    if (i % 2 === 0) pts.push({ x: left, y }, { x: right, y });
+    else pts.push({ x: right, y }, { x: left, y });
+  }
+  return pts;
+}
+
+function strokeUntil(
+  ctx: CanvasRenderingContext2D,
+  pts: { x: number; y: number }[],
+  t: number,
+  width: number,
+) {
+  if (t <= 0 || pts.length < 2) return;
+  let total = 0;
+  const seg: number[] = [];
+  for (let i = 1; i < pts.length; i++) {
+    const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+    seg.push(d);
+    total += d;
+  }
+  let left = total * Math.min(1, t);
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "rgba(0,0,0,1)";
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 0; i < seg.length && left > 0; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    if (left >= seg[i]) {
+      ctx.lineTo(b.x, b.y);
+      left -= seg[i];
+    } else {
+      const u = left / seg[i];
+      ctx.lineTo(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u);
+      left = 0;
+    }
+  }
+  ctx.stroke();
+}
+
 function ScratchPad({
   open,
   name,
-  onNudge,
+  ms,
 }: {
   open: Side | null;
   name: (key: Side) => string;
-  onNudge: () => void;
+  ms: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const moves = useRef(0);
-  const done = useRef(false);
+  const finger = useRef<{ x: number; y: number }[]>([]);
+  const size = useRef({ w: 1, h: 1 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || open) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const box = canvas.getBoundingClientRect();
-    canvas.width = Math.max(1, box.width);
-    canvas.height = Math.max(1, box.height);
-    ctx.fillStyle = "#6ea8ff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "rgba(255,255,255,0.18)";
-    for (let y = 8; y < canvas.height; y += 16) {
-      for (let x = (y / 16) % 2 ? 8 : 0; x < canvas.width; x += 16) {
-        ctx.fillRect(x, y, 8, 8);
+    const w = Math.max(1, box.width);
+    const h = Math.max(1, box.height);
+    canvas.width = w;
+    canvas.height = h;
+    size.current = { w, h };
+    const path = scratchPath(w, h);
+    const width = Math.max(22, h * 0.14);
+    const start = performance.now();
+    let raf = 0;
+    const frame = (now: number) => {
+      const t = Math.min(1, (now - start) / ms);
+      coat(ctx, w, h);
+      strokeUntil(ctx, path, t, width);
+      ctx.globalCompositeOperation = "destination-out";
+      for (const point of finger.current) {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 11, 0, Math.PI * 2);
+        ctx.fill();
       }
-    }
-  }, []);
+      if (t < 1) raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [open, ms]);
 
   function erase(event: PointerEvent<HTMLCanvasElement>) {
-    if (done.current || open) return;
+    if (open) return;
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
+    if (!canvas) return;
     const box = canvas.getBoundingClientRect();
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.beginPath();
-    ctx.arc(event.clientX - box.left, event.clientY - box.top, 18, 0, Math.PI * 2);
-    ctx.fill();
-    moves.current += 1;
-    if (moves.current < 8) return;
-    done.current = true;
-    onNudge();
+    finger.current.push({
+      x: event.clientX - box.left,
+      y: event.clientY - box.top,
+    });
   }
 
   return (
@@ -287,10 +367,8 @@ export function GutCheck({
     leanRef.current = lean;
   }, [lean]);
   const [play] = useState<Ritual>(() => pickPlay(id, readPlays()));
-  const [spinMs] = useState(() =>
-    reduced() ? 300 : 2800 + Math.floor(Math.random() * 700),
-  );
-  const [watchMs] = useState(() => (reduced() ? 1200 : 12000));
+  const [playMs] = useState(() => (reduced() ? 400 : 15000));
+  const [watchMs] = useState(() => (reduced() ? 800 : 15000));
   const [phase, setPhase] = useState<Phase>("spin");
   const [land, setLand] = useState<Side | null>(null);
   const [line, setLine] = useState("");
@@ -298,7 +376,6 @@ export function GutCheck({
   const [extra, setExtra] = useState<"smile" | "pulse">("smile");
   const [camOn, setCamOn] = useState(false);
   const camRef = useRef<HTMLVideoElement>(null);
-  const nudgeRef = useRef<() => void>(() => {});
   const name = (key: Side) => (key === "a" ? pathA : pathB);
   const landedName = land ? name(land) : "";
   const saidKey = said.join("\n");
@@ -307,22 +384,15 @@ export function GutCheck({
     rememberPlay(play);
   }, [play]);
 
-  // Land, then read every frame for the whole window before the verdict.
-  // Hold and scratch can land early. The others wait out the motion.
+  // The play runs for 15 seconds, then the face is read for 15 seconds.
+  // Scratching or holding does not skip either window.
   useEffect(() => {
     let cancel = false;
-    let scheduled = false;
-    let revealed = false;
-    let nudged = false;
     let chosen: Lean = null;
-    let waitId = 0;
-    let arm = 0;
     const timers: number[] = [];
-    const started = performance.now();
 
     function reveal() {
-      if (cancel || revealed) return;
-      revealed = true;
+      if (cancel) return;
       const side = coinLand(chosen ?? leanRef.current, Math.random(), lastCoin());
       try {
         sessionStorage.setItem(COIN, side);
@@ -342,31 +412,9 @@ export function GutCheck({
       );
     }
 
-    function landNow(next: Lean) {
-      if (cancel || scheduled) return;
-      scheduled = true;
-      chosen = next;
-      window.clearTimeout(arm);
-      const wait = nudged ? 0 : Math.max(0, spinMs - (performance.now() - started));
-      waitId = window.setTimeout(reveal, wait);
-      timers.push(waitId);
-    }
+    timers.push(window.setTimeout(reveal, playMs));
 
-    nudgeRef.current = () => {
-      if (cancel || revealed) return;
-      nudged = true;
-      if (!scheduled) {
-        landNow(leanRef.current);
-        return;
-      }
-      window.clearTimeout(waitId);
-      reveal();
-    };
-
-    arm = window.setTimeout(() => landNow(leanRef.current), 1200);
-
-    if (leanRef.current || saidKey.length === 0) landNow(leanRef.current);
-    else {
+    if (!(leanRef.current || saidKey.length === 0)) {
       const lines = saidKey.split("\n").filter(Boolean);
       void fetch("/api/lean", {
         method: "POST",
@@ -380,21 +428,18 @@ export function GutCheck({
       })
         .then((res) => (res.ok ? res.json() : null))
         .then((data: { path?: string; quote?: string } | null) => {
-          if (cancel) return;
-          if (data?.path !== "a" && data?.path !== "b") return landNow(null);
-          landNow({ path: data.path, why: data.quote || "From what you said." });
+          if (cancel || !data) return;
+          if (data.path !== "a" && data.path !== "b") return;
+          chosen = { path: data.path, why: data.quote || "From what you said." };
         })
-        .catch(() => {
-          if (!cancel) landNow(null);
-        });
+        .catch(() => {});
     }
 
     return () => {
       cancel = true;
-      window.clearTimeout(arm);
       timers.forEach((id) => window.clearTimeout(id));
     };
-  }, [decision, pathA, pathB, saidKey, spinMs, watchMs]);
+  }, [decision, pathA, pathB, saidKey, playMs, watchMs]);
 
   // Show the same session camera beside the play while it lands and reads.
   useEffect(() => {
@@ -457,8 +502,8 @@ export function GutCheck({
       : phase === "read"
         ? readSub()
         : phase === "watch"
-          ? "It landed. Keep your face in view while it reads."
-          : SPIN_SUB[play];
+          ? "It landed. Fifteen seconds on your face. On this phone."
+          : `${SPIN_SUB[play]} Fifteen seconds.`;
 
   let action: ReactNode;
   if (phase === "spin" || phase === "watch" || phase === "pulse") {
@@ -501,13 +546,24 @@ export function GutCheck({
       </div>
       {phase === "spin" || phase === "watch" ? (
         <div className="grid min-h-0 flex-1 grid-cols-2 gap-3">
-          <PlayBoard
-            play={play}
-            phase={phase}
-            land={land}
-            name={name}
-            onNudge={() => nudgeRef.current()}
-          />
+          <div className="relative h-full min-h-0">
+            <PlayBoard
+              play={play}
+              phase={phase}
+              land={land}
+              name={name}
+              holdMs={playMs}
+            />
+            {phase === "spin" ? (
+              <span className="pointer-events-none absolute inset-x-2 bottom-2 block h-1.5 overflow-hidden rounded-full bg-background/70">
+                <span
+                  key="play"
+                  className="run-bar block h-full bg-primary"
+                  style={{ "--run": `${playMs}ms` } as React.CSSProperties}
+                />
+              </span>
+            ) : null}
+          </div>
           <div className="relative min-h-0 overflow-hidden rounded-3xl bg-muted">
             <video
               ref={camRef}
@@ -521,7 +577,7 @@ export function GutCheck({
               </div>
             )}
             {phase === "watch" ? (
-              <span className="absolute inset-x-2 bottom-2 block h-1.5 overflow-hidden rounded-full bg-background/70">
+              <span className="pointer-events-none absolute inset-x-2 bottom-2 block h-1.5 overflow-hidden rounded-full bg-background/70">
                 <span
                   className="run-bar block h-full bg-primary"
                   style={{ "--run": `${watchMs}ms` } as React.CSSProperties}
