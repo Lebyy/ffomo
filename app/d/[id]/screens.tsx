@@ -1715,7 +1715,7 @@ export function CardScreen({
 
   if (!kept && plan.rec.hold) {
     return (
-      <Shell step={STEP_LABEL.card} action={<NextButton onClick={onCheck}>Check it</NextButton>}>
+      <Shell step={STEP_LABEL.card} action={<NextButton onClick={onCheck}>Home</NextButton>}>
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto [scrollbar-width:none]">
           <SettleRead saved={saved} pathA={result.pathA} pathB={result.pathB} />
         </div>

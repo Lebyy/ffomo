@@ -592,7 +592,7 @@ export function Session({ id }: { id: string }) {
           onPick={take}
           onLook={lookAgain}
           onLeave={() => router.push("/")}
-          onCheck={() => commit({ step: "facts" })}
+          onCheck={() => router.push("/")}
           onReopen={reopen}
           onReasons={() => {
             setAfterReasons("card");

@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { decisionPutSchema, listDecisions, putDecision } from "@/lib/decisions";
+import { decisionPutSchema, listDecisions, putDecision, removeDecision } from "@/lib/decisions";
 
 export const maxDuration = 30;
 
@@ -36,5 +36,22 @@ export async function PUT(request: Request) {
   } catch (err) {
     console.error("decision save failed", err instanceof Error ? err.message.slice(0, 180) : "");
     return Response.json({ error: "Couldn't save that decision." }, { status: 502 });
+  }
+}
+
+const ID = /^[A-Za-z0-9-]{8,80}$/;
+
+export async function DELETE(request: Request) {
+  const { userId } = await auth();
+  if (!userId) return Response.json({ error: "Sign in first." }, { status: 401 });
+  const id = new URL(request.url).searchParams.get("id") ?? "";
+  if (!ID.test(id)) return Response.json({ error: "That decision didn't come through." }, { status: 400 });
+  try {
+    const ok = await removeDecision(userId, id);
+    if (!ok) return Response.json({ error: "Add MONGODB_URI to save decisions." }, { status: 503 });
+    return Response.json({ ok: true });
+  } catch (err) {
+    console.error("decision delete failed", err instanceof Error ? err.message.slice(0, 180) : "");
+    return Response.json({ error: "Couldn't delete that decision." }, { status: 502 });
   }
 }

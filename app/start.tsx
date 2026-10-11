@@ -14,7 +14,7 @@ import { InstallHint } from "@/components/pwa";
 import { Fit } from "@/components/fit";
 import { STEP_LABEL } from "@/lib/flow";
 import { shrinkPhoto } from "@/lib/photo";
-import { saveDecision, useDecisions, type SavedDecision } from "@/lib/store";
+import { dropDecision, saveDecision, useDecisions, type SavedDecision } from "@/lib/store";
 
 export default function Start() {
   const router = useRouter();
@@ -24,6 +24,7 @@ export default function Start() {
   const [error, setError] = useState("");
   const saved = useDecisions();
   const thread = useRef<HTMLDivElement>(null);
+  const [dropId, setDropId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!sent) return;
@@ -92,23 +93,53 @@ export default function Start() {
           {!sent && saved.length > 0 ? (
             <div className="flex flex-col gap-2" aria-label="Your decisions">
               {saved.map((item) => (
-                <Link
-                  key={item.id}
-                  href={`/d/${item.id}`}
-                  className="glass flex items-center gap-3 rounded-2xl px-4 py-2.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <Fit max={16} min={12} className="font-semibold">
-                      {item.decision}
-                    </Fit>
-                    <span className="truncate text-sm text-muted-foreground">
-                      {statusOf(item)}
+                <div key={item.id} className="glass flex items-center gap-2 rounded-2xl py-1 pr-2 pl-4">
+                  <Link
+                    href={`/d/${item.id}`}
+                    className="flex min-w-0 flex-1 items-center gap-3 py-1.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <Fit max={16} min={12} className="font-semibold">
+                        {item.decision}
+                      </Fit>
+                      <span className="truncate text-sm text-muted-foreground">
+                        {statusOf(item)}
+                      </span>
                     </span>
-                  </span>
-                  <span aria-hidden className="font-pixel text-xl text-primary">
-                    ›
-                  </span>
-                </Link>
+                    <span aria-hidden className="font-pixel text-xl text-primary">
+                      ›
+                    </span>
+                  </Link>
+                  {dropId === item.id ? (
+                    <span className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        className="rounded-xl px-2 py-2 text-sm font-medium text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                        onClick={() => {
+                          dropDecision(item.id);
+                          setDropId(null);
+                        }}
+                      >
+                        Delete it
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-xl px-2 py-2 text-sm text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                        onClick={() => setDropId(null)}
+                      >
+                        Keep
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-xl px-2 py-2 text-sm text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                      onClick={() => setDropId(item.id)}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           ) : null}

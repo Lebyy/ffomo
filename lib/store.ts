@@ -4,6 +4,7 @@ import type { DecideResult, Fork } from "@/lib/schema";
 import type { PathId } from "@/lib/settle";
 
 const KEY = "ffomo";
+const GONE = "ffomo-gone";
 
 export type Answer = { q: string; a: string };
 
@@ -106,6 +107,34 @@ export function readDecision(id: string) {
   return readAll().find((item) => item.id === id) ?? null;
 }
 
+function readGone() {
+  if (typeof window === "undefined") return new Set<string>();
+  try {
+    const raw = localStorage.getItem(GONE);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function rememberGone(id: string) {
+  const gone = readGone();
+  gone.add(id);
+  localStorage.setItem(GONE, JSON.stringify([...gone].slice(-200)));
+}
+
+export function dropDecision(id: string) {
+  try {
+    rememberGone(id);
+    writeAll(readAll().filter((item) => item.id !== id));
+    void fetch(`/api/decisions?id=${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function saveDecision(item: SavedDecision) {
   try {
     const next = { ...item, at: Date.now() };
@@ -169,25 +198,31 @@ export async function syncDecisions(userId: string) {
     const res = await fetch("/api/decisions");
     if (!res.ok) return;
     const { items } = (await res.json()) as { items: SavedDecision[] };
+    const gone = readGone();
     const owner = localStorage.getItem(OWNER);
     const local = owner && owner !== userId ? [] : readAll();
     const byId = new Map(local.map((item) => [item.id, item]));
     const onServer = new Set(items.map((item) => item.id));
-    const merged = items.map((item) => {
+    const merged = items.flatMap((item) => {
+      if (gone.has(item.id)) {
+        void fetch(`/api/decisions?id=${encodeURIComponent(item.id)}`, { method: "DELETE" }).catch(() => {});
+        return [];
+      }
       const localItem = byId.get(item.id);
       if (localItem && (localItem.at ?? 0) > (item.at ?? 0)) {
         push(localItem);
-        return localItem;
+        return [localItem];
       }
-      return withLocal(item, localItem);
+      return [withLocal(item, localItem)];
     });
     for (const item of local) {
-      if (onServer.has(item.id)) continue;
+      if (onServer.has(item.id) || gone.has(item.id)) continue;
       merged.push(item);
       push(item);
     }
     localStorage.setItem(OWNER, userId);
-    writeAll(merged);
+    const stillGone = readGone();
+    writeAll(merged.filter((item) => !stillGone.has(item.id)));
   } catch {
     // ponytail: offline means the cache stands in until the next sign-in sync; no retry queue.
   } finally {

@@ -44,3 +44,10 @@ export async function putDecision(userId: string, body: z.infer<typeof decisionP
   }
   return true;
 }
+
+export async function removeDecision(userId: string, id: string) {
+  const col = await rows();
+  if (!col) return false;
+  await col.deleteOne({ _id: `${userId}:${id}`, userId });
+  return true;
+}
