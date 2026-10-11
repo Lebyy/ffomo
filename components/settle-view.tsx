@@ -49,8 +49,71 @@ function sayNext(next: string, picked: boolean) {
   return known[next] ?? next.replace("People who posted are a selected sample.", "People who post aren't everyone.");
 }
 
-function fadeLine(nums: number[]) {
-  return nums.join(", ");
+const FADE_WHEN = ["Now", "A week", "A month", "Six months"] as const;
+const FADE_SHORT = ["Now", "Week", "Month", "6 mo"] as const;
+
+function WorryTick({ n, quiet, delay }: { n: number; quiet?: boolean; delay: number }) {
+  const height = Math.max(3, Math.round((Math.min(100, Math.max(0, n)) / 100) * 56));
+  return (
+    <span className="flex min-w-0 flex-col items-center gap-1">
+      <span className="font-pixel text-[11px] leading-none">{n}</span>
+      <span className="flex h-14 w-full items-end overflow-hidden rounded-[3px] bg-primary/20">
+        <span
+          className={`worry-fill block w-full rounded-[2px] ${quiet ? "bg-foreground/40" : "bg-primary"}`}
+          style={{ height, animationDelay: `${delay}ms` }}
+        />
+      </span>
+    </span>
+  );
+}
+
+function WorryChart({ closed, open }: { closed: number[]; open?: number[] }) {
+  return (
+    <figure className="mt-3">
+      <div className="flex items-end gap-2" aria-hidden>
+        {FADE_WHEN.map((label, index) => (
+          <div key={label} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+            <div className={`grid w-full gap-1 ${open ? "grid-cols-2" : "grid-cols-1"}`}>
+              <WorryTick n={closed[index] ?? 0} delay={index * 70} />
+              {open ? <WorryTick n={open[index] ?? 0} quiet delay={index * 70} /> : null}
+            </div>
+            <span className="text-[10px] leading-none text-muted-foreground">{FADE_SHORT[index]}</span>
+          </div>
+        ))}
+      </div>
+      <figcaption className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <i aria-hidden className="block size-2 rounded-[2px] bg-primary" />
+          {open ? "Close the other one" : "From here"}
+        </span>
+        {open ? (
+          <span className="inline-flex items-center gap-1.5">
+            <i aria-hidden className="block size-2 rounded-[2px] bg-foreground/35" />
+            Keep looking
+          </span>
+        ) : null}
+      </figcaption>
+      <table className="sr-only">
+        <caption>How loud the worry stays. Lower is quieter. A guess.</caption>
+        <thead>
+          <tr>
+            <th scope="col">When</th>
+            <th scope="col">{open ? "If you close the other one" : "From here"}</th>
+            {open ? <th scope="col">If you keep looking</th> : null}
+          </tr>
+        </thead>
+        <tbody>
+          {FADE_WHEN.map((label, index) => (
+            <tr key={label}>
+              <th scope="row">{label}</th>
+              <td>{closed[index]}</td>
+              {open ? <td>{open[index]}</td> : null}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </figure>
+  );
 }
 
 export function StakesAsk({
@@ -266,22 +329,14 @@ export function SettleRead({
         ) : null}
       </Bubble>
       <Bubble from="ffomo" wide>
-        <p>
-          {worry} {LOUD[plan.score.band]}{" "}
+        <p>{worry}</p>
+        <p className="mt-1">
+          {LOUD[plan.score.band]}{" "}
           <span className="whitespace-nowrap">{plan.score.alarm} out of 100.</span>
         </p>
-        {kept ? (
-          <p className="mt-1">From here: {fadeLine(plan.fade.closed)}.</p>
-        ) : (
-          <>
-            <p className="mt-1">Stop looking: {fadeLine(plan.fade.closed)}.</p>
-            <p>Keep looking: {fadeLine(plan.fade.open)}.</p>
-          </>
-        )}
-        <p className="mt-1 text-muted-foreground">
-          {kept
-            ? "Now, a week, a month, six months. Lower is quieter, because the other one is closed. A guess, not a scan."
-            : "Now, a week, a month, six months. Lower is quieter. A guess, not a scan. Nothing was made up."}
+        <WorryChart closed={plan.fade.closed} open={kept ? undefined : plan.fade.open} />
+        <p className="mt-2 text-muted-foreground">
+          Lower is quieter. A guess, not a scan. Nothing was made up.
         </p>
       </Bubble>
       {!kept && posts === 0 && !plan.rec.hold ? (

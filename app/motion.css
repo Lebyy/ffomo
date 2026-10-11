@@ -145,6 +145,17 @@ select {
   animation: meter-grow 520ms var(--ease-out) both;
 }
 
+.worry-fill {
+  transform-origin: bottom center;
+  animation: worry-fill 640ms var(--ease-out) both;
+}
+
+@keyframes worry-fill {
+  from {
+    transform: scaleY(0);
+  }
+}
+
 @keyframes meter-grow {
   from {
     transform: scaleX(0);
@@ -752,7 +763,8 @@ select {
     transition: none;
   }
 
-  .meter-grow {
+  .meter-grow,
+  .worry-fill {
     animation: none;
   }
 
