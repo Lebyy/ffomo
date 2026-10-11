@@ -65,7 +65,8 @@ async function peekPage(url: string) {
 }
 
 function meter(stories: Story[], path: "a" | "b"): SideMeter {
-  const side = stories.filter((story) => story.path === path);
+  // Sketches are common patterns, not posts, so they never count in the meter.
+  const side = stories.filter((story) => story.path === path && story.kind !== "sketch");
   return {
     glad: side.filter((story) => story.feeling === "glad").length,
     regret: side.filter((story) => story.feeling === "regret").length,

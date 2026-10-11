@@ -69,7 +69,8 @@ export function storyFromCheck(
 }
 
 function tally(stories: Story[], path: "a" | "b") {
-  const side = stories.filter((story) => story.path === path);
+  // Sketches are common patterns, not posts, so they never count in the meter.
+  const side = stories.filter((story) => story.path === path && story.kind !== "sketch");
   return {
     glad: side.filter((story) => story.feeling === "glad").length,
     regret: side.filter((story) => story.feeling === "regret").length,
